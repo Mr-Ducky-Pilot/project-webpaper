@@ -19,6 +19,7 @@ namespace WebPaper
         private WorkerWManager? _workerWManager;
         private InputManager? _inputManager;
         private Services.CookieManager? _cookieManager;
+        private Services.PerformanceManager? _performanceManager;
         private IntPtr _windowHandle;
         private AppWindow? _appWindow;
         private bool _isInitialized = false;
@@ -97,6 +98,9 @@ namespace WebPaper
 
                 // Step 5: Install input hooks for interactivity
                 await InstallInputHooks();
+
+                // Step 6: Initialize performance monitoring
+                InitializePerformanceManager();
 
                 // Hide loading panel
                 LoadingPanel.Visibility = Visibility.Collapsed;
@@ -209,6 +213,41 @@ namespace WebPaper
                 Console.WriteLine("Wallpaper will render but may not be interactive.");
                 // Don't throw - allow app to continue without input
             }
+        }
+
+        private void InitializePerformanceManager()
+        {
+            try
+            {
+                Console.WriteLine("Initializing performance manager...");
+
+                // Create performance manager
+                _performanceManager = new Services.PerformanceManager();
+
+                // Subscribe to events
+                _performanceManager.WallpaperPaused += OnWallpaperPaused;
+                _performanceManager.WallpaperResumed += OnWallpaperResumed;
+
+                // Initialize with WebView2
+                _performanceManager.Initialize(webView.CoreWebView2);
+
+                Console.WriteLine("Performance manager initialized successfully!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WARNING: Failed to initialize performance manager - {ex.Message}");
+                // Don't throw - allow app to continue without performance optimization
+            }
+        }
+
+        private void OnWallpaperPaused(object? sender, string reason)
+        {
+            Console.WriteLine($"Performance: Wallpaper paused - {reason}");
+        }
+
+        private void OnWallpaperResumed(object? sender, EventArgs e)
+        {
+            Console.WriteLine("Performance: Wallpaper resumed");
         }
 
         private IntPtr GetWebViewHandle()
@@ -366,6 +405,20 @@ namespace WebPaper
             catch (Exception ex)
             {
                 Console.WriteLine($"Error saving cookies: {ex.Message}");
+            }
+
+            // Cleanup performance manager
+            if (_performanceManager != null)
+            {
+                try
+                {
+                    _performanceManager.Dispose();
+                    Console.WriteLine("Performance manager disposed");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error disposing PerformanceManager: {ex.Message}");
+                }
             }
 
             // Cleanup input hooks
