@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "WebPaper": {
+      "commandName": "MsixPackage"
+    },
+    "WebPaper (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
