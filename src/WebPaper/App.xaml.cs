@@ -87,11 +87,11 @@ namespace WebPaper
         {
             // For now, just write to console
             // In a real app, you'd show a dialog with instructions
-            Console.WriteLine($"\n{'='.ToString() repeat 60}");
+            Console.WriteLine($"\n{new string('=', 60)}");
             Console.WriteLine("FATAL ERROR");
-            Console.WriteLine($"{'='.ToString() repeat 60}");
+            Console.WriteLine($"{new string('=', 60)}");
             Console.WriteLine(message);
-            Console.WriteLine($"{'='.ToString() repeat 60}\n");
+            Console.WriteLine($"{new string('=', 60)}\n");
 
             // TODO: Show actual dialog when running on Windows
             // Use ContentDialog or MessageDialog
