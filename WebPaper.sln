@@ -1,0 +1,31 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebPaper", "src\WebPaper\WebPaper.csproj", "{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|ARM64 = Debug|ARM64
+		Release|x64 = Release|x64
+		Release|ARM64 = Release|ARM64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}.Debug|x64.ActiveCfg = Debug|x64
+		{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}.Debug|x64.Build.0 = Debug|x64
+		{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}.Debug|ARM64.Build.0 = Debug|ARM64
+		{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}.Release|x64.ActiveCfg = Release|x64
+		{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}.Release|x64.Build.0 = Release|x64
+		{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}.Release|ARM64.ActiveCfg = Release|ARM64
+		{67C5F1C7-9D4B-4C3A-8F8E-7E4D4E8F8E7E}.Release|ARM64.Build.0 = Release|ARM64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A7F3D1E2-8B4C-4D3E-9F1A-2C5D6E7F8A9B}
+	EndGlobalSection
+EndGlobal
