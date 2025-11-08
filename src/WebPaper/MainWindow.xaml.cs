@@ -17,6 +17,7 @@ namespace WebPaper
     public sealed partial class MainWindow : Window
     {
         private WorkerWManager? _workerWManager;
+        private InputManager? _inputManager;
         private IntPtr _windowHandle;
         private AppWindow? _appWindow;
         private bool _isInitialized = false;
@@ -87,8 +88,15 @@ namespace WebPaper
                 // Step 2: Attach to desktop using WorkerW
                 AttachToDesktop();
 
+                // Step 3: Install input hooks for interactivity
+                await InstallInputHooks();
+
                 // Hide loading panel
                 LoadingPanel.Visibility = Visibility.Collapsed;
+
+                Console.WriteLine("=== WebPaper Initialization Complete ===");
+                Console.WriteLine("Wallpaper is now fully interactive!");
+                Console.WriteLine("Try clicking, typing, and scrolling on the webpage.");
             }
             catch (Exception ex)
             {
@@ -156,6 +164,80 @@ namespace WebPaper
             }
         }
 
+        private async Task InstallInputHooks()
+        {
+            try
+            {
+                Console.WriteLine("Installing input hooks...");
+
+                // Create input manager
+                _inputManager = new InputManager();
+
+                // Get WebView2's HWND
+                // We need to wait a moment for WebView2 to create its window
+                await Task.Delay(500);
+
+                IntPtr webViewHandle = GetWebViewHandle();
+
+                if (webViewHandle == IntPtr.Zero)
+                {
+                    Console.WriteLine("WARNING: Could not get WebView2 handle. Input may not work correctly.");
+                    Console.WriteLine("Attempting to use fallback method...");
+                    webViewHandle = _windowHandle; // Fallback to main window
+                }
+                else
+                {
+                    Console.WriteLine($"WebView2 Handle: 0x{webViewHandle:X8}");
+                }
+
+                // Install hooks
+                _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle);
+
+                Console.WriteLine("Input hooks installed successfully!");
+                Console.WriteLine(_inputManager.GetDiagnostics());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WARNING: Failed to install input hooks - {ex.Message}");
+                Console.WriteLine("Wallpaper will render but may not be interactive.");
+                // Don't throw - allow app to continue without input
+            }
+        }
+
+        private IntPtr GetWebViewHandle()
+        {
+            try
+            {
+                // Try to find WebView2's child window
+                // WebView2 creates a child window for rendering
+                IntPtr childHandle = IntPtr.Zero;
+
+                Native.NativeMethods.EnumWindows((hwnd, lparam) =>
+                {
+                    // Check if this window is a child of our window
+                    IntPtr parent = Native.NativeMethods.GetWindow(hwnd, Native.NativeMethods.GetWindowType.GW_OWNER);
+
+                    // Get the window class
+                    var className = WorkerWManager.GetWindowClassName(hwnd);
+
+                    // WebView2 uses Chrome_WidgetWin_* windows
+                    if (className.Contains("Chrome_WidgetWin"))
+                    {
+                        childHandle = hwnd;
+                        return false; // Stop enumeration
+                    }
+
+                    return true; // Continue enumeration
+                }, IntPtr.Zero);
+
+                return childHandle;
+            }
+            catch
+            {
+                return IntPtr.Zero;
+            }
+        }
+
         private void WebView_NavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
         {
             // You can add URL filtering here if needed
@@ -187,21 +269,48 @@ namespace WebPaper
 
         private void MainWindow_Closed(object sender, WindowEventArgs args)
         {
-            // Cleanup
+            Console.WriteLine("WebPaper shutting down...");
+
+            // Cleanup input hooks
+            if (_inputManager != null)
+            {
+                try
+                {
+                    _inputManager.Dispose();
+                    Console.WriteLine("Input hooks uninstalled");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error disposing InputManager: {ex.Message}");
+                }
+            }
+
+            // Cleanup WorkerW
             if (_workerWManager != null && _windowHandle != IntPtr.Zero)
             {
                 try
                 {
                     _workerWManager.DetachWindowFromDesktop(_windowHandle);
+                    Console.WriteLine("Detached from desktop");
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore errors during cleanup
+                    Console.WriteLine($"Error detaching from desktop: {ex.Message}");
                 }
             }
 
             // Dispose WebView2
-            webView.Close();
+            try
+            {
+                webView.Close();
+                Console.WriteLine("WebView2 closed");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error closing WebView2: {ex.Message}");
+            }
+
+            Console.WriteLine("WebPaper shutdown complete");
         }
 
         /// <summary>

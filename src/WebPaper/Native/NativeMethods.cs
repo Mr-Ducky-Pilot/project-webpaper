@@ -298,12 +298,91 @@ namespace WebPaper.Native
 
         #endregion
 
+        #region Message Sending
+
+        /// <summary>
+        /// Sends the specified message to a window or windows.
+        /// </summary>
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        /// <summary>
+        /// Posts a message to the message queue of a window.
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        #endregion
+
+        #region Keyboard and Mouse State
+
+        /// <summary>
+        /// Retrieves the status of the specified virtual key.
+        /// </summary>
+        [DllImport("user32.dll")]
+        public static extern short GetKeyState(int nVirtKey);
+
+        /// <summary>
+        /// Retrieves the status of the specified virtual key (asynchronous).
+        /// </summary>
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
+
+        /// <summary>
+        /// Retrieves the position of the mouse cursor.
+        /// </summary>
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetCursorPos(out POINT lpPoint);
+
+        /// <summary>
+        /// Sets the position of the cursor.
+        /// </summary>
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetCursorPos(int x, int y);
+
+        #endregion
+
         #region Constants
 
         /// <summary>
         /// Message to spawn WorkerW window (undocumented)
         /// </summary>
         public const uint WM_SPAWN_WORKER = 0x052C;
+
+        // Mouse messages
+        public const uint WM_MOUSEMOVE = 0x0200;
+        public const uint WM_LBUTTONDOWN = 0x0201;
+        public const uint WM_LBUTTONUP = 0x0202;
+        public const uint WM_RBUTTONDOWN = 0x0204;
+        public const uint WM_RBUTTONUP = 0x0205;
+        public const uint WM_MBUTTONDOWN = 0x0207;
+        public const uint WM_MBUTTONUP = 0x0208;
+        public const uint WM_MOUSEWHEEL = 0x020A;
+        public const uint WM_MOUSEHWHEEL = 0x020E;
+
+        // Keyboard messages
+        public const uint WM_KEYDOWN = 0x0100;
+        public const uint WM_KEYUP = 0x0101;
+        public const uint WM_CHAR = 0x0102;
+        public const uint WM_SYSKEYDOWN = 0x0104;
+        public const uint WM_SYSKEYUP = 0x0105;
+
+        // Virtual key codes (commonly used)
+        public const int VK_SHIFT = 0x10;
+        public const int VK_CONTROL = 0x11;
+        public const int VK_MENU = 0x12; // Alt key
+        public const int VK_LSHIFT = 0xA0;
+        public const int VK_RSHIFT = 0xA1;
+        public const int VK_LCONTROL = 0xA2;
+        public const int VK_RCONTROL = 0xA3;
+        public const int VK_LMENU = 0xA4;
+        public const int VK_RMENU = 0xA5;
+
+        // Hook codes
+        public const int HC_ACTION = 0;
 
         #endregion
     }
