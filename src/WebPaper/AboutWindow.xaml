@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="WebPaper.AboutWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="About WebPaper"
+    Width="500"
+    Height="650">
+
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header with app icon and name -->
+        <Grid Grid.Row="0"
+              Background="{ThemeResource AccentAAFillColorDefaultBrush}"
+              Padding="24,32">
+            <StackPanel HorizontalAlignment="Center" Spacing="12">
+                <TextBlock Text="🌐"
+                          FontSize="64"
+                          HorizontalAlignment="Center"/>
+                <TextBlock Text="WebPaper"
+                          FontSize="32"
+                          FontWeight="Bold"
+                          HorizontalAlignment="Center"
+                          Foreground="White"/>
+                <TextBlock x:Name="VersionText"
+                          Text="Version 1.0.0"
+                          FontSize="14"
+                          HorizontalAlignment="Center"
+                          Foreground="White"
+                          Opacity="0.9"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" Padding="24,20">
+            <StackPanel Spacing="20">
+
+                <!-- Description -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="About"
+                              FontSize="18"
+                              FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                        <Run Text="WebPaper transforms any webpage into a fully interactive desktop wallpaper for Windows. "/>
+                        <Run Text="Browse the web, watch videos, check social media, or display live dashboards - all from your desktop wallpaper!"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- Features -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Features"
+                              FontSize="18"
+                              FontWeight="SemiBold"/>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="✅ Fully interactive webpages" FontSize="14"/>
+                        <TextBlock Text="✅ Desktop icons remain clickable" FontSize="14"/>
+                        <TextBlock Text="✅ Secure cookie persistence" FontSize="14"/>
+                        <TextBlock Text="✅ Auto-pause during fullscreen apps" FontSize="14"/>
+                        <TextBlock Text="✅ Battery optimization" FontSize="14"/>
+                        <TextBlock Text="✅ Windows 11 24H2 compatible" FontSize="14"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- Built with -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Built With"
+                              FontSize="18"
+                              FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="14">
+                        <Run Text="• "/>
+                        <Run Text=".NET 8 &amp; C# 12" FontWeight="SemiBold"/>
+                        <LineBreak/>
+                        <Run Text="• "/>
+                        <Run Text="WinUI 3" FontWeight="SemiBold"/>
+                        <Run Text=" - Modern Windows UI framework"/>
+                        <LineBreak/>
+                        <Run Text="• "/>
+                        <Run Text="WebView2" FontWeight="SemiBold"/>
+                        <Run Text=" - Chromium-based web rendering"/>
+                        <LineBreak/>
+                        <Run Text="• "/>
+                        <Run Text="Windows DPAPI" FontWeight="SemiBold"/>
+                        <Run Text=" - AES-256 encryption for cookies"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- Credits -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Credits"
+                              FontSize="18"
+                              FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="14">
+                        <Run Text="Inspired by "/>
+                        <Hyperlink NavigateUri="https://github.com/rocksdanister/lively">
+                            <Run Text="Lively Wallpaper"/>
+                        </Hyperlink>
+                        <Run Text=" by rocksdanister"/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="Thanks to the Windows desktop development community and all contributors."/>
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- Links -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Links"
+                              FontSize="18"
+                              FontWeight="SemiBold"/>
+                    <StackPanel Spacing="8">
+                        <HyperlinkButton Content="📚 User Guide"
+                                        Click="UserGuideButton_Click"
+                                        Padding="0"/>
+                        <HyperlinkButton Content="🐛 Report a Bug"
+                                        Click="ReportBugButton_Click"
+                                        Padding="0"/>
+                        <HyperlinkButton Content="💡 Suggest a Feature"
+                                        Click="FeatureRequestButton_Click"
+                                        Padding="0"/>
+                        <HyperlinkButton Content="🌐 GitHub Repository"
+                                        Click="GitHubButton_Click"
+                                        Padding="0"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- License -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="License"
+                              FontSize="18"
+                              FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="14">
+                        <Run Text="MIT License"/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="Copyright © 2025"/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software."/>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- System info -->
+                <StackPanel Spacing="4" Margin="0,16,0,0">
+                    <TextBlock Text="System Information"
+                              FontSize="12"
+                              Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock x:Name="SystemInfoText"
+                              FontSize="11"
+                              FontFamily="Consolas"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Grid Grid.Row="2"
+              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+              Padding="24,16"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+              BorderThickness="0,1,0,0">
+            <Button Content="Close"
+                   Click="CloseButton_Click"
+                   Style="{StaticResource AccentButtonStyle}"
+                   HorizontalAlignment="Right"
+                   MinWidth="100"/>
+        </Grid>
+    </Grid>
+</Window>

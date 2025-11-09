@@ -20,9 +20,13 @@ namespace WebPaper
         private InputManager? _inputManager;
         private Services.CookieManager? _cookieManager;
         private Services.PerformanceManager? _performanceManager;
+        private Services.ConfigManager? _configManager;
+        private Services.TrayIconManager? _trayIconManager;
+        private Models.AppConfig? _config;
         private IntPtr _windowHandle;
         private AppWindow? _appWindow;
         private bool _isInitialized = false;
+        private bool _wallpaperEnabled = true;
 
         public MainWindow()
         {
@@ -84,30 +88,41 @@ namespace WebPaper
 
             try
             {
-                // Step 1: Initialize CookieManager
+                // Step 0: Load configuration
+                await LoadConfiguration();
+
+                // Step 1: Initialize system tray
+                InitializeTrayIcon();
+
+                // Step 2: Initialize CookieManager
                 _cookieManager = new Services.CookieManager();
 
-                // Step 2: Initialize WebView2
+                // Step 3: Initialize WebView2
                 await InitializeWebView2();
 
-                // Step 3: Restore saved cookies (if any)
+                // Step 4: Restore saved cookies (if any)
                 await RestoreSavedCookies();
 
-                // Step 4: Attach to desktop using WorkerW
+                // Step 5: Attach to desktop using WorkerW
                 AttachToDesktop();
 
-                // Step 5: Install input hooks for interactivity
+                // Step 6: Install input hooks for interactivity
                 await InstallInputHooks();
 
-                // Step 6: Initialize performance monitoring
+                // Step 7: Initialize performance monitoring
                 InitializePerformanceManager();
+
+                // Step 8: Check if first run and show welcome
+                await CheckFirstRun();
 
                 // Hide loading panel
                 LoadingPanel.Visibility = Visibility.Collapsed;
 
                 Console.WriteLine("=== WebPaper Initialization Complete ===");
+                Console.WriteLine($"Wallpaper URL: {_config?.WallpaperUrl}");
                 Console.WriteLine("Wallpaper is now fully interactive!");
                 Console.WriteLine("Try clicking, typing, and scrolling on the webpage.");
+                Console.WriteLine("Right-click for options or check system tray icon.");
             }
             catch (Exception ex)
             {
@@ -145,8 +160,10 @@ namespace WebPaper
                 webView.CoreWebView2.NavigationCompleted += WebView_NavigationCompleted;
                 webView.CoreWebView2.NavigationStarting += WebView_NavigationStarting;
 
-                // Navigate to initial URL (you can change this)
-                webView.CoreWebView2.Navigate("https://www.youtube.com");
+                // Navigate to configured URL
+                var url = _config?.WallpaperUrl ?? "https://www.example.com";
+                Console.WriteLine($"Navigating to: {url}");
+                webView.CoreWebView2.Navigate(url);
             }
             catch (Exception ex)
             {
@@ -248,6 +265,158 @@ namespace WebPaper
         private void OnWallpaperResumed(object? sender, EventArgs e)
         {
             Console.WriteLine("Performance: Wallpaper resumed");
+        }
+
+        private async Task LoadConfiguration()
+        {
+            try
+            {
+                _configManager = new Services.ConfigManager();
+                _config = await _configManager.LoadConfigAsync();
+                Console.WriteLine("Configuration loaded successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR loading configuration: {ex.Message}");
+                _config = Models.AppConfig.CreateDefault();
+            }
+        }
+
+        private void InitializeTrayIcon()
+        {
+            try
+            {
+                _trayIconManager = new Services.TrayIconManager();
+                _trayIconManager.Initialize();
+
+                // Wire up events
+                _trayIconManager.ShowSettingsRequested += (s, e) => ShowSettings();
+                _trayIconManager.ShowAboutRequested += (s, e) => ShowAbout();
+                _trayIconManager.ExitRequested += (s, e) => ExitApplication();
+                _trayIconManager.ToggleWallpaperRequested += (s, e) => ToggleWallpaper();
+
+                Console.WriteLine("System tray icon initialized");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WARNING: Failed to initialize system tray - {ex.Message}");
+                // Continue without system tray
+            }
+        }
+
+        private async Task CheckFirstRun()
+        {
+            try
+            {
+                if (_config?.IsFirstRun == true && _configManager != null)
+                {
+                    Console.WriteLine("First run detected - showing welcome message");
+
+                    // Show welcome notification
+                    _trayIconManager?.ShowNotification(
+                        "Welcome to WebPaper!",
+                        "Right-click the tray icon or desktop to access settings.",
+                        System.Windows.Forms.ToolTipIcon.Info
+                    );
+
+                    // Mark first run complete
+                    await _configManager.CompleteFirstRunAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in first run check: {ex.Message}");
+            }
+        }
+
+        private void ShowSettings()
+        {
+            try
+            {
+                if (_configManager == null || _cookieManager == null)
+                    return;
+
+                // Create and show settings window
+                var settingsWindow = new SettingsWindow(_configManager, _cookieManager);
+                settingsWindow.Activate();
+
+                // If settings were saved, reload configuration
+                settingsWindow.Closed += async (s, e) =>
+                {
+                    if (settingsWindow.SettingsSaved)
+                    {
+                        await LoadConfiguration();
+                        // Reload the page with new URL
+                        if (webView.CoreWebView2 != null && _config != null)
+                        {
+                            webView.CoreWebView2.Navigate(_config.WallpaperUrl);
+                        }
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error showing settings: {ex.Message}");
+            }
+        }
+
+        private void ShowAbout()
+        {
+            try
+            {
+                var aboutWindow = new AboutWindow();
+                aboutWindow.Activate();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error showing about: {ex.Message}");
+            }
+        }
+
+        private void ToggleWallpaper()
+        {
+            try
+            {
+                _wallpaperEnabled = !_wallpaperEnabled;
+
+                if (_wallpaperEnabled)
+                {
+                    // Resume wallpaper
+                    if (_performanceManager != null)
+                    {
+                        // TODO: Resume if paused
+                    }
+                    _trayIconManager?.UpdateTooltip("WebPaper - Enabled");
+                    Console.WriteLine("Wallpaper enabled");
+                }
+                else
+                {
+                    // Pause wallpaper
+                    if (_performanceManager != null)
+                    {
+                        // TODO: Pause
+                    }
+                    _trayIconManager?.UpdateTooltip("WebPaper - Disabled");
+                    Console.WriteLine("Wallpaper disabled");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error toggling wallpaper: {ex.Message}");
+            }
+        }
+
+        private void ExitApplication()
+        {
+            try
+            {
+                Console.WriteLine("Exiting application...");
+                Application.Current.Exit();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error exiting: {ex.Message}");
+            }
         }
 
         private IntPtr GetWebViewHandle()
@@ -407,6 +576,20 @@ namespace WebPaper
                 Console.WriteLine($"Error saving cookies: {ex.Message}");
             }
 
+            // Cleanup system tray
+            if (_trayIconManager != null)
+            {
+                try
+                {
+                    _trayIconManager.Dispose();
+                    Console.WriteLine("System tray disposed");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error disposing TrayIconManager: {ex.Message}");
+                }
+            }
+
             // Cleanup performance manager
             if (_performanceManager != null)
             {
@@ -472,6 +655,30 @@ namespace WebPaper
             {
                 webView.CoreWebView2.Navigate(url);
             }
+        }
+
+        // Context menu event handlers
+        private void SettingsMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ShowSettings();
+        }
+
+        private void ReloadMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                webView.CoreWebView2?.Reload();
+                Console.WriteLine("Wallpaper reloaded");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reloading: {ex.Message}");
+            }
+        }
+
+        private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            ShowAbout();
         }
     }
 }

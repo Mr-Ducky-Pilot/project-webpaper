@@ -12,7 +12,16 @@
         <!-- WebView2 will render the webpage here -->
         <WebView2 x:Name="webView"
                   Source="https://www.example.com"
-                  DefaultBackgroundColor="Transparent"/>
+                  DefaultBackgroundColor="Transparent">
+            <WebView2.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem Text="⚙️ Settings" Click="SettingsMenuItem_Click"/>
+                    <MenuFlyoutItem Text="🔄 Reload Wallpaper" Click="ReloadMenuItem_Click"/>
+                    <MenuFlyoutSeparator/>
+                    <MenuFlyoutItem Text="ℹ️ About WebPaper" Click="AboutMenuItem_Click"/>
+                </MenuFlyout>
+            </WebView2.ContextFlyout>
+        </WebView2>
 
         <!-- Loading indicator (shown during initialization) -->
         <StackPanel x:Name="LoadingPanel"
