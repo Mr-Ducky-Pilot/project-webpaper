@@ -18,6 +18,8 @@ namespace WebPaper
     {
         private WorkerWManager? _workerWManager;
         private InputManager? _inputManager;
+        private Services.CookieManager? _cookieManager;
+        private Services.PerformanceManager? _performanceManager;
         private IntPtr _windowHandle;
         private AppWindow? _appWindow;
         private bool _isInitialized = false;
@@ -82,14 +84,23 @@ namespace WebPaper
 
             try
             {
-                // Step 1: Initialize WebView2
+                // Step 1: Initialize CookieManager
+                _cookieManager = new Services.CookieManager();
+
+                // Step 2: Initialize WebView2
                 await InitializeWebView2();
 
-                // Step 2: Attach to desktop using WorkerW
+                // Step 3: Restore saved cookies (if any)
+                await RestoreSavedCookies();
+
+                // Step 4: Attach to desktop using WorkerW
                 AttachToDesktop();
 
-                // Step 3: Install input hooks for interactivity
+                // Step 5: Install input hooks for interactivity
                 await InstallInputHooks();
+
+                // Step 6: Initialize performance monitoring
+                InitializePerformanceManager();
 
                 // Hide loading panel
                 LoadingPanel.Visibility = Visibility.Collapsed;
@@ -204,6 +215,41 @@ namespace WebPaper
             }
         }
 
+        private void InitializePerformanceManager()
+        {
+            try
+            {
+                Console.WriteLine("Initializing performance manager...");
+
+                // Create performance manager
+                _performanceManager = new Services.PerformanceManager();
+
+                // Subscribe to events
+                _performanceManager.WallpaperPaused += OnWallpaperPaused;
+                _performanceManager.WallpaperResumed += OnWallpaperResumed;
+
+                // Initialize with WebView2
+                _performanceManager.Initialize(webView.CoreWebView2);
+
+                Console.WriteLine("Performance manager initialized successfully!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WARNING: Failed to initialize performance manager - {ex.Message}");
+                // Don't throw - allow app to continue without performance optimization
+            }
+        }
+
+        private void OnWallpaperPaused(object? sender, string reason)
+        {
+            Console.WriteLine($"Performance: Wallpaper paused - {reason}");
+        }
+
+        private void OnWallpaperResumed(object? sender, EventArgs e)
+        {
+            Console.WriteLine("Performance: Wallpaper resumed");
+        }
+
         private IntPtr GetWebViewHandle()
         {
             try
@@ -238,6 +284,86 @@ namespace WebPaper
             }
         }
 
+        private async Task RestoreSavedCookies()
+        {
+            try
+            {
+                if (_cookieManager == null)
+                    return;
+
+                if (_cookieManager.HasSavedCookies())
+                {
+                    Console.WriteLine("CookieManager: Found saved cookies, restoring...");
+                    var restored = await _cookieManager.RestoreCookiesAsync(webView.CoreWebView2);
+
+                    if (restored)
+                    {
+                        Console.WriteLine("CookieManager: Cookies restored successfully!");
+                        // Reload the page to use restored cookies
+                        webView.CoreWebView2.Reload();
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("CookieManager: No saved cookies found");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"CookieManager ERROR: Failed to restore cookies - {ex.Message}");
+                // Don't throw - continue without cookies
+            }
+        }
+
+        private async Task SaveCookiesAsync()
+        {
+            try
+            {
+                if (_cookieManager == null || webView.CoreWebView2 == null)
+                    return;
+
+                var currentUrl = webView.CoreWebView2.Source;
+                await _cookieManager.SaveCookiesAsync(webView.CoreWebView2, currentUrl);
+                Console.WriteLine("CookieManager: Cookies saved on shutdown");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"CookieManager ERROR: Failed to save cookies - {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Opens a login helper window for authentication
+        /// </summary>
+        public async Task OpenLoginHelperAsync(string? loginUrl = null)
+        {
+            try
+            {
+                if (_cookieManager == null)
+                {
+                    Console.WriteLine("LoginHelper: CookieManager not initialized");
+                    return;
+                }
+
+                // Use current URL if not specified
+                var url = loginUrl ?? webView.CoreWebView2?.Source ?? "https://www.google.com";
+
+                Console.WriteLine($"LoginHelper: Opening login window for {url}");
+
+                var loginWindow = new LoginHelperWindow(url, _cookieManager);
+                loginWindow.Activate();
+
+                // Wait for window to close
+                // Note: In a real implementation, you'd want to handle this asynchronously
+                // For now, we'll just show the window and let the user close it
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"LoginHelper ERROR: {ex.Message}");
+            }
+        }
+
         private void WebView_NavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
         {
             // You can add URL filtering here if needed
@@ -267,9 +393,33 @@ namespace WebPaper
             Console.WriteLine($"ERROR: {message}");
         }
 
-        private void MainWindow_Closed(object sender, WindowEventArgs args)
+        private async void MainWindow_Closed(object sender, WindowEventArgs args)
         {
             Console.WriteLine("WebPaper shutting down...");
+
+            // Save cookies before closing
+            try
+            {
+                await SaveCookiesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving cookies: {ex.Message}");
+            }
+
+            // Cleanup performance manager
+            if (_performanceManager != null)
+            {
+                try
+                {
+                    _performanceManager.Dispose();
+                    Console.WriteLine("Performance manager disposed");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error disposing PerformanceManager: {ex.Message}");
+                }
+            }
 
             // Cleanup input hooks
             if (_inputManager != null)
