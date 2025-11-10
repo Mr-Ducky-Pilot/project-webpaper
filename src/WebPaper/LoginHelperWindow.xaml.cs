@@ -1,3 +1,4 @@
+using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -94,6 +95,7 @@ namespace WebPaper
                 );
 
                 var environment = await CoreWebView2Environment.CreateAsync(
+                    browserExecutableFolder: null,
                     userDataFolder: userDataFolder
                 );
 
