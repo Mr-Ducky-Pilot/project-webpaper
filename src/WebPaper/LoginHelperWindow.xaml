@@ -48,7 +48,7 @@
 
             <!-- Loading indicator -->
             <Grid x:Name="LoadingPanel"
-                  Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                  Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
                   Visibility="Visible">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressRing IsActive="True" Width="50" Height="50"/>
@@ -83,7 +83,6 @@
                         MinWidth="100"/>
                 <Button Content="Save &amp; Close"
                         Click="SaveButton_Click"
-                        Style="{StaticResource AccentButtonStyle}"
                         MinWidth="120"/>
             </StackPanel>
         </Grid>
