@@ -1,14 +1,14 @@
-extern alias WebView2;
-
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using WebView2::Microsoft.Web.WebView2.Core;
 using System;
 using System.Threading.Tasks;
 using WebPaper.Services;
 using Windows.Graphics;
 using WinRT.Interop;
+using CoreWebView2 = Microsoft.Web.WebView2.Core.CoreWebView2;
+using CoreWebView2Environment = Microsoft.Web.WebView2.Core.CoreWebView2Environment;
+using CoreWebView2NavigationCompletedEventArgs = Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs;
 
 namespace WebPaper
 {
