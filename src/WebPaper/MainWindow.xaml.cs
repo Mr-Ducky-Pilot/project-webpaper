@@ -1,8 +1,10 @@
+extern alias WebView2;
+
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.Web.WebView2.Core;
+using WebView2::Microsoft.Web.WebView2.Core;
 using System;
 using System.Threading.Tasks;
 using WebPaper.Core;
