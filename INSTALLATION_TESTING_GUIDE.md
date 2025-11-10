@@ -17,6 +17,18 @@ Your MSIX installation likely failed silently due to **missing runtime dependenc
 
 When you installed the MSIX, Windows installed the package, but the app couldn't start because these dependencies weren't present.
 
+## ⚠️ IMPORTANT: Project Now Configured for Self-Contained Deployment
+
+**As of the latest commit**, the project has been updated with:
+- `WindowsPackageType=None` (unpackaged deployment)
+- `WindowsAppSDKSelfContained=true` (includes all Windows App SDK DLLs)
+
+This means:
+✅ The publish folder will include ALL required DLLs (Microsoft.ui.xaml.dll, etc.)
+✅ App runs directly from .exe without any runtime installation needed
+✅ ~200MB larger deployment size (includes full Windows App SDK runtime)
+✅ No external dependencies required (truly self-contained)
+
 ---
 
 ## ✅ Recommended Installation Methods (Ranked)
