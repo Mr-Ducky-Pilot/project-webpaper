@@ -1,4 +1,6 @@
-using Microsoft.Web.WebView2.Core;
+extern alias WebView2;
+
+using WebView2::Microsoft.Web.WebView2.Core;
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
