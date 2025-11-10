@@ -11,8 +11,8 @@
 
 #define MyAppName "WebPaper"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "Your Name"
-#define MyAppURL "https://github.com/yourusername/project-webpaper"
+#define MyAppPublisher "Omprakash J"
+#define MyAppURL "https://github.com/Mr-Ducky-Pilot/project-webpaper"
 #define MyAppExeName "WebPaper.exe"
 #define PublishDir "E:\project-webpaper\src\WebPaper\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish"
 
