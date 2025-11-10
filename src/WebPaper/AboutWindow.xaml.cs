@@ -1,7 +1,10 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Windowing;
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using Windows.Graphics;
+using WinRT.Interop;
 
 namespace WebPaper
 {
@@ -10,8 +13,27 @@ namespace WebPaper
         public AboutWindow()
         {
             this.InitializeComponent();
+
+            // Set window size
+            SetWindowSize(500, 650);
+
             LoadVersionInfo();
             LoadSystemInfo();
+        }
+
+        private void SetWindowSize(int width, int height)
+        {
+            try
+            {
+                var hwnd = WindowNative.GetWindowHandle(this);
+                var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
+                appWindow?.Resize(new SizeInt32 { Width = width, Height = height });
+            }
+            catch
+            {
+                // Fallback - size will be default
+            }
         }
 
         private void LoadVersionInfo()

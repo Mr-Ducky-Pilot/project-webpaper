@@ -1,9 +1,12 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Windowing;
 using System;
 using System.Threading.Tasks;
 using WebPaper.Models;
 using WebPaper.Services;
+using Windows.Graphics;
+using WinRT.Interop;
 
 namespace WebPaper
 {
@@ -23,7 +26,25 @@ namespace WebPaper
             _cookieManager = cookieManager;
             _config = _configManager.GetCurrentConfig() ?? AppConfig.CreateDefault();
 
+            // Set window size
+            SetWindowSize(600, 700);
+
             LoadSettings();
+        }
+
+        private void SetWindowSize(int width, int height)
+        {
+            try
+            {
+                var hwnd = WindowNative.GetWindowHandle(this);
+                var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
+                appWindow?.Resize(new SizeInt32 { Width = width, Height = height });
+            }
+            catch
+            {
+                // Fallback - size will be default
+            }
         }
 
         private async void LoadSettings()
@@ -152,7 +173,7 @@ namespace WebPaper
                 }
 
                 // Open login helper window
-                var loginWindow = new LoginHelperWindow(url);
+                var loginWindow = new LoginHelperWindow(url, _cookieManager);
                 loginWindow.Activate();
 
                 StatusText.Text = "Login helper opened";
