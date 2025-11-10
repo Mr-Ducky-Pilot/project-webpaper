@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using System;
+using CoreWebView2Environment = Microsoft.Web.WebView2.Core.CoreWebView2Environment;
 
 namespace WebPaper
 {
@@ -52,7 +53,7 @@ namespace WebPaper
             try
             {
                 // Try to get WebView2 version to verify it's installed
-                string? version = Microsoft.Web.WebView2.Core.CoreWebView2Environment.GetAvailableBrowserVersionString();
+                string? version = CoreWebView2Environment.GetAvailableBrowserVersionString();
 
                 if (string.IsNullOrEmpty(version))
                 {

@@ -1,6 +1,3 @@
-extern alias WebView2;
-
-using WebView2::Microsoft.Web.WebView2.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,6 +7,10 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using WebPaper.Models;
+using CoreWebView2 = Microsoft.Web.WebView2.Core.CoreWebView2;
+using CoreWebView2Cookie = Microsoft.Web.WebView2.Core.CoreWebView2Cookie;
+using CoreWebView2CookieManager = Microsoft.Web.WebView2.Core.CoreWebView2CookieManager;
+using CoreWebView2CookieSameSiteKind = Microsoft.Web.WebView2.Core.CoreWebView2CookieSameSiteKind;
 
 namespace WebPaper.Services
 {
