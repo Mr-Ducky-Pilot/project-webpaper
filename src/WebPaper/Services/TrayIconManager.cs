@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using Application = Microsoft.UI.Xaml.Application;
 
@@ -22,10 +23,10 @@ namespace WebPaper.Services
         {
             try
             {
-                // Create notify icon
+                // Create notify icon with custom icon
                 _notifyIcon = new NotifyIcon
                 {
-                    Icon = SystemIcons.Application, // TODO: Replace with custom icon
+                    Icon = LoadCustomIcon(),
                     Text = "WebPaper - Interactive Wallpaper",
                     Visible = true
                 };
@@ -124,6 +125,44 @@ namespace WebPaper.Services
             {
                 _notifyIcon.Visible = false;
             }
+        }
+
+        /// <summary>
+        /// Loads custom icon from Assets or falls back to system icon
+        /// </summary>
+        private Icon LoadCustomIcon()
+        {
+            try
+            {
+                // Try to load from Assets folder (relative to executable)
+                var appDir = AppDomain.CurrentDomain.BaseDirectory;
+                var iconPath = Path.Combine(appDir, "Assets", "Square44x44Logo.png");
+
+                if (File.Exists(iconPath))
+                {
+                    // Load PNG and convert to icon
+                    using (var bitmap = new Bitmap(iconPath))
+                    {
+                        // Resize to 16x16 for tray icon
+                        using (var resized = new Bitmap(bitmap, new Size(16, 16)))
+                        {
+                            var handle = resized.GetHicon();
+                            return Icon.FromHandle(handle);
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"TrayIconManager: Icon not found at {iconPath}, using system icon");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"TrayIconManager: Failed to load custom icon - {ex.Message}");
+            }
+
+            // Fallback to system application icon
+            return SystemIcons.Application;
         }
 
         public void Dispose()

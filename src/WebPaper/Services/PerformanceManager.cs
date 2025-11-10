@@ -199,6 +199,22 @@ namespace WebPaper.Services
         }
 
         /// <summary>
+        /// Manually pause wallpaper rendering
+        /// </summary>
+        public async Task PauseAsync()
+        {
+            await PauseRenderingAsync("Manual pause");
+        }
+
+        /// <summary>
+        /// Manually resume wallpaper rendering
+        /// </summary>
+        public async Task ResumeAsync()
+        {
+            await ResumeRenderingAsync();
+        }
+
+        /// <summary>
         /// Pauses rendering to save resources
         /// </summary>
         private async Task PauseRenderingAsync(string reason)
