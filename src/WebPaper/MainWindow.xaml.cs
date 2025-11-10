@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Threading.Tasks;
+using Serilog;
 using WebPaper.Core;
 using Windows.Graphics;
 using WinRT.Interop;
@@ -121,11 +122,11 @@ namespace WebPaper
                 // Hide loading panel
                 LoadingPanel.Visibility = Visibility.Collapsed;
 
-                Console.WriteLine("=== WebPaper Initialization Complete ===");
-                Console.WriteLine($"Wallpaper URL: {_config?.WallpaperUrl}");
-                Console.WriteLine("Wallpaper is now fully interactive!");
-                Console.WriteLine("Try clicking, typing, and scrolling on the webpage.");
-                Console.WriteLine("Right-click for options or check system tray icon.");
+                Log.Information("=== WebPaper Initialization Complete ===");
+                Log.Information($"Wallpaper URL: {_config?.WallpaperUrl}");
+                Log.Information("Wallpaper is now fully interactive!");
+                Log.Information("Try clicking, typing, and scrolling on the webpage.");
+                Log.Information("Right-click for options or check system tray icon.");
             }
             catch (Exception ex)
             {
@@ -167,7 +168,7 @@ namespace WebPaper
 
                 // Navigate to configured URL
                 var url = _config?.WallpaperUrl ?? "https://www.example.com";
-                Console.WriteLine($"Navigating to: {url}");
+                Log.Information($"Navigating to: {url}");
                 webView.CoreWebView2.Navigate(url);
             }
             catch (Exception ex)
@@ -189,7 +190,7 @@ namespace WebPaper
                 // Attach our window to desktop
                 _workerWManager.AttachWindowToDesktop(_windowHandle);
 
-                Console.WriteLine($"Successfully attached to desktop. WorkerW: 0x{workerW:X8}");
+                Log.Information($"Successfully attached to desktop. WorkerW: 0x{workerW:X8}");
             }
             catch (Exception ex)
             {
@@ -201,7 +202,7 @@ namespace WebPaper
         {
             try
             {
-                Console.WriteLine("Installing input hooks...");
+                Log.Information("Installing input hooks...");
 
                 // Create input manager
                 _inputManager = new InputManager();
@@ -214,25 +215,25 @@ namespace WebPaper
 
                 if (webViewHandle == IntPtr.Zero)
                 {
-                    Console.WriteLine("WARNING: Could not get WebView2 handle. Input may not work correctly.");
-                    Console.WriteLine("Attempting to use fallback method...");
+                    Log.Warning(" Could not get WebView2 handle. Input may not work correctly.");
+                    Log.Information("Attempting to use fallback method...");
                     webViewHandle = _windowHandle; // Fallback to main window
                 }
                 else
                 {
-                    Console.WriteLine($"WebView2 Handle: 0x{webViewHandle:X8}");
+                    Log.Information($"WebView2 Handle: 0x{webViewHandle:X8}");
                 }
 
                 // Install hooks
                 _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle);
 
-                Console.WriteLine("Input hooks installed successfully!");
+                Log.Information("Input hooks installed successfully!");
                 Console.WriteLine(_inputManager.GetDiagnostics());
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"WARNING: Failed to install input hooks - {ex.Message}");
-                Console.WriteLine("Wallpaper will render but may not be interactive.");
+                Log.Warning($" Failed to install input hooks - {ex.Message}");
+                Log.Information("Wallpaper will render but may not be interactive.");
                 // Don't throw - allow app to continue without input
             }
         }
@@ -241,7 +242,7 @@ namespace WebPaper
         {
             try
             {
-                Console.WriteLine("Initializing performance manager...");
+                Log.Information("Initializing performance manager...");
 
                 // Create performance manager
                 _performanceManager = new Services.PerformanceManager();
@@ -253,23 +254,23 @@ namespace WebPaper
                 // Initialize with WebView2
                 _performanceManager.Initialize(webView.CoreWebView2);
 
-                Console.WriteLine("Performance manager initialized successfully!");
+                Log.Information("Performance manager initialized successfully!");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"WARNING: Failed to initialize performance manager - {ex.Message}");
+                Log.Warning($" Failed to initialize performance manager - {ex.Message}");
                 // Don't throw - allow app to continue without performance optimization
             }
         }
 
         private void OnWallpaperPaused(object? sender, string reason)
         {
-            Console.WriteLine($"Performance: Wallpaper paused - {reason}");
+            Log.Information($"Performance: Wallpaper paused - {reason}");
         }
 
         private void OnWallpaperResumed(object? sender, EventArgs e)
         {
-            Console.WriteLine("Performance: Wallpaper resumed");
+            Log.Information("Performance: Wallpaper resumed");
         }
 
         private async Task LoadConfiguration()
@@ -278,11 +279,11 @@ namespace WebPaper
             {
                 _configManager = new Services.ConfigManager();
                 _config = await _configManager.LoadConfigAsync();
-                Console.WriteLine("Configuration loaded successfully");
+                Log.Information("Configuration loaded successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR loading configuration: {ex.Message}");
+                Log.Information($"ERROR loading configuration: {ex.Message}");
                 _config = Models.AppConfig.CreateDefault();
             }
         }
@@ -300,11 +301,11 @@ namespace WebPaper
                 _trayIconManager.ExitRequested += (s, e) => ExitApplication();
                 _trayIconManager.ToggleWallpaperRequested += (s, e) => ToggleWallpaper();
 
-                Console.WriteLine("System tray icon initialized");
+                Log.Information("System tray icon initialized");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"WARNING: Failed to initialize system tray - {ex.Message}");
+                Log.Warning($" Failed to initialize system tray - {ex.Message}");
                 // Continue without system tray
             }
         }
@@ -315,22 +316,60 @@ namespace WebPaper
             {
                 if (_config?.IsFirstRun == true && _configManager != null)
                 {
-                    Console.WriteLine("First run detected - showing welcome message");
+                    Log.Information("First run detected - showing welcome window");
+
+                    // Show welcome window and wait for user to complete setup
+                    await ShowWelcomeWindow();
+
+                    // Reload configuration after welcome window closes
+                    await LoadConfiguration();
+
+                    // Reload webpage with new URL
+                    if (webView.CoreWebView2 != null && _config != null)
+                    {
+                        Log.Information("Navigating to user-selected URL: {Url}", _config.WallpaperUrl);
+                        webView.CoreWebView2.Navigate(_config.WallpaperUrl);
+                    }
+
+                    // Mark first run complete
+                    await _configManager.CompleteFirstRunAsync();
 
                     // Show welcome notification
                     _trayIconManager?.ShowNotification(
                         "Welcome to WebPaper!",
-                        "Right-click the tray icon or desktop to access settings.",
+                        "Your wallpaper is now active! Right-click the tray icon for settings.",
                         System.Windows.Forms.ToolTipIcon.Info
                     );
-
-                    // Mark first run complete
-                    await _configManager.CompleteFirstRunAsync();
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in first run check: {ex.Message}");
+                Log.Error(ex, "Error in first run check");
+            }
+        }
+
+        private async Task ShowWelcomeWindow()
+        {
+            try
+            {
+                // Create welcome window
+                var welcomeWindow = new WelcomeWindow(_configManager!);
+
+                // Use TaskCompletionSource to wait for window to close
+                var tcs = new TaskCompletionSource<bool>();
+                welcomeWindow.Closed += (s, e) => tcs.SetResult(welcomeWindow.SetupCompleted);
+
+                // Show window
+                welcomeWindow.Activate();
+
+                // Wait for window to close
+                await tcs.Task;
+
+                Log.Information("Welcome window closed");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to show welcome window");
             }
         }
 
@@ -361,7 +400,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error showing settings: {ex.Message}");
+                Log.Information($"Error showing settings: {ex.Message}");
             }
         }
 
@@ -374,7 +413,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error showing about: {ex.Message}");
+                Log.Information($"Error showing about: {ex.Message}");
             }
         }
 
@@ -392,7 +431,7 @@ namespace WebPaper
                         // TODO: Resume if paused
                     }
                     _trayIconManager?.UpdateTooltip("WebPaper - Enabled");
-                    Console.WriteLine("Wallpaper enabled");
+                    Log.Information("Wallpaper enabled");
                 }
                 else
                 {
@@ -402,12 +441,12 @@ namespace WebPaper
                         // TODO: Pause
                     }
                     _trayIconManager?.UpdateTooltip("WebPaper - Disabled");
-                    Console.WriteLine("Wallpaper disabled");
+                    Log.Information("Wallpaper disabled");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error toggling wallpaper: {ex.Message}");
+                Log.Information($"Error toggling wallpaper: {ex.Message}");
             }
         }
 
@@ -415,12 +454,12 @@ namespace WebPaper
         {
             try
             {
-                Console.WriteLine("Exiting application...");
+                Log.Information("Exiting application...");
                 Application.Current.Exit();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error exiting: {ex.Message}");
+                Log.Information($"Error exiting: {ex.Message}");
             }
         }
 
@@ -467,24 +506,24 @@ namespace WebPaper
 
                 if (_cookieManager.HasSavedCookies())
                 {
-                    Console.WriteLine("CookieManager: Found saved cookies, restoring...");
+                    Log.Information("CookieManager: Found saved cookies, restoring...");
                     var restored = await _cookieManager.RestoreCookiesAsync(webView.CoreWebView2);
 
                     if (restored)
                     {
-                        Console.WriteLine("CookieManager: Cookies restored successfully!");
+                        Log.Information("CookieManager: Cookies restored successfully!");
                         // Reload the page to use restored cookies
                         webView.CoreWebView2.Reload();
                     }
                 }
                 else
                 {
-                    Console.WriteLine("CookieManager: No saved cookies found");
+                    Log.Information("CookieManager: No saved cookies found");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"CookieManager ERROR: Failed to restore cookies - {ex.Message}");
+                Log.Information($"CookieManager ERROR: Failed to restore cookies - {ex.Message}");
                 // Don't throw - continue without cookies
             }
         }
@@ -498,11 +537,11 @@ namespace WebPaper
 
                 var currentUrl = webView.CoreWebView2.Source;
                 await _cookieManager.SaveCookiesAsync(webView.CoreWebView2, currentUrl);
-                Console.WriteLine("CookieManager: Cookies saved on shutdown");
+                Log.Information("CookieManager: Cookies saved on shutdown");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"CookieManager ERROR: Failed to save cookies - {ex.Message}");
+                Log.Information($"CookieManager ERROR: Failed to save cookies - {ex.Message}");
             }
         }
 
@@ -517,14 +556,14 @@ namespace WebPaper
             {
                 if (_cookieManager == null)
                 {
-                    Console.WriteLine("LoginHelper: CookieManager not initialized");
+                    Log.Information("LoginHelper: CookieManager not initialized");
                     return;
                 }
 
                 // Use current URL if not specified
                 var url = loginUrl ?? webView.CoreWebView2?.Source ?? "https://www.google.com";
 
-                Console.WriteLine($"LoginHelper: Opening login window for {url}");
+                Log.Information($"LoginHelper: Opening login window for {url}");
 
                 var loginWindow = new LoginHelperWindow(url, _cookieManager);
                 loginWindow.Activate();
@@ -536,25 +575,25 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"LoginHelper ERROR: {ex.Message}");
+                Log.Information($"LoginHelper ERROR: {ex.Message}");
             }
         }
 
         private void WebView_NavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)
         {
             // You can add URL filtering here if needed
-            Console.WriteLine($"Navigating to: {args.Uri}");
+            Log.Information($"Navigating to: {args.Uri}");
         }
 
         private void WebView_NavigationCompleted(CoreWebView2 sender, CoreWebView2NavigationCompletedEventArgs args)
         {
             if (args.IsSuccess)
             {
-                Console.WriteLine($"Navigation completed successfully");
+                Log.Information($"Navigation completed successfully");
             }
             else
             {
-                Console.WriteLine($"Navigation failed: {args.WebErrorStatus}");
+                Log.Information($"Navigation failed: {args.WebErrorStatus}");
                 ShowError($"Failed to load webpage: {args.WebErrorStatus}");
             }
         }
@@ -566,12 +605,12 @@ namespace WebPaper
             ErrorPanel.Visibility = Visibility.Visible;
             ErrorMessage.Text = message;
 
-            Console.WriteLine($"ERROR: {message}");
+            Log.Error($" {message}");
         }
 
         private async void MainWindow_Closed(object sender, WindowEventArgs args)
         {
-            Console.WriteLine("WebPaper shutting down...");
+            Log.Information("WebPaper shutting down...");
 
             // Save cookies before closing
             try
@@ -580,7 +619,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error saving cookies: {ex.Message}");
+                Log.Information($"Error saving cookies: {ex.Message}");
             }
 
             // Cleanup system tray
@@ -589,11 +628,11 @@ namespace WebPaper
                 try
                 {
                     _trayIconManager.Dispose();
-                    Console.WriteLine("System tray disposed");
+                    Log.Information("System tray disposed");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error disposing TrayIconManager: {ex.Message}");
+                    Log.Information($"Error disposing TrayIconManager: {ex.Message}");
                 }
             }
 
@@ -603,11 +642,11 @@ namespace WebPaper
                 try
                 {
                     _performanceManager.Dispose();
-                    Console.WriteLine("Performance manager disposed");
+                    Log.Information("Performance manager disposed");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error disposing PerformanceManager: {ex.Message}");
+                    Log.Information($"Error disposing PerformanceManager: {ex.Message}");
                 }
             }
 
@@ -617,11 +656,11 @@ namespace WebPaper
                 try
                 {
                     _inputManager.Dispose();
-                    Console.WriteLine("Input hooks uninstalled");
+                    Log.Information("Input hooks uninstalled");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error disposing InputManager: {ex.Message}");
+                    Log.Information($"Error disposing InputManager: {ex.Message}");
                 }
             }
 
@@ -631,11 +670,11 @@ namespace WebPaper
                 try
                 {
                     _workerWManager.DetachWindowFromDesktop(_windowHandle);
-                    Console.WriteLine("Detached from desktop");
+                    Log.Information("Detached from desktop");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error detaching from desktop: {ex.Message}");
+                    Log.Information($"Error detaching from desktop: {ex.Message}");
                 }
             }
 
@@ -643,14 +682,14 @@ namespace WebPaper
             try
             {
                 webView.Close();
-                Console.WriteLine("WebView2 closed");
+                Log.Information("WebView2 closed");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error closing WebView2: {ex.Message}");
+                Log.Information($"Error closing WebView2: {ex.Message}");
             }
 
-            Console.WriteLine("WebPaper shutdown complete");
+            Log.Information("WebPaper shutdown complete");
         }
 
         /// <summary>
@@ -675,11 +714,11 @@ namespace WebPaper
             try
             {
                 webView.CoreWebView2?.Reload();
-                Console.WriteLine("Wallpaper reloaded");
+                Log.Information("Wallpaper reloaded");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error reloading: {ex.Message}");
+                Log.Information($"Error reloading: {ex.Message}");
             }
         }
 

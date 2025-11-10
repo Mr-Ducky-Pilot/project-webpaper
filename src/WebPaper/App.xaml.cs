@@ -1,5 +1,7 @@
 using Microsoft.UI.Xaml;
 using System;
+using System.IO;
+using Serilog;
 using CoreWebView2Environment = Microsoft.Web.WebView2.Core.CoreWebView2Environment;
 
 namespace WebPaper
@@ -16,10 +18,53 @@ namespace WebPaper
         /// </summary>
         public App()
         {
+            // Allocate console for debugging
+            InitializeConsoleAndLogging();
+
             this.InitializeComponent();
 
             // Handle unhandled exceptions
             this.UnhandledException += App_UnhandledException;
+
+            Log.Information("=== WebPaper Application Starting ===");
+            Log.Information("Version: 1.0.0");
+            Log.Information("OS: {OS}", Environment.OSVersion);
+        }
+
+        private void InitializeConsoleAndLogging()
+        {
+            try
+            {
+                // Allocate console for debugging (comment out for production)
+                Native.NativeMethods.AllocConsole();
+                Console.WriteLine("Console allocated for debugging");
+
+                // Initialize Serilog file logging
+                var logPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "WebPaper",
+                    "Logs",
+                    "webpaper.log"
+                );
+
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+
+                Log.Logger = new LoggerConfiguration()
+                    .MinimumLevel.Debug()
+                    .WriteTo.Console()
+                    .WriteTo.File(logPath,
+                        rollingInterval: RollingInterval.Day,
+                        retainedFileCountLimit: 7,
+                        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+                    .CreateLogger();
+
+                Console.WriteLine($"Log file: {logPath}");
+            }
+            catch (Exception ex)
+            {
+                // If logging fails, continue anyway
+                Console.WriteLine($"Warning: Failed to initialize logging: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -29,22 +74,23 @@ namespace WebPaper
         {
             try
             {
+                Log.Information("OnLaunched called");
+
                 // Check if WebView2 Runtime is available
                 EnsureWebView2Runtime();
 
                 // Create and activate the main window
+                Log.Information("Creating MainWindow");
                 m_window = new MainWindow();
                 m_window.Activate();
 
-                Console.WriteLine("WebPaper started successfully");
+                Log.Information("WebPaper started successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"FATAL: Application launch failed: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
-
-                // Show error dialog
-                ShowFatalError(ex.Message);
+                Log.Fatal(ex, "FATAL: Application launch failed");
+                ShowFatalError($"WebPaper failed to start:\n\n{ex.Message}\n\nPlease check the log file at:\n%LocalAppData%\\WebPaper\\Logs");
+                Current.Exit();
             }
         }
 
@@ -52,50 +98,61 @@ namespace WebPaper
         {
             try
             {
+                Log.Information("Checking for WebView2 Runtime");
+
                 // Try to get WebView2 version to verify it's installed
                 string? version = CoreWebView2Environment.GetAvailableBrowserVersionString();
 
                 if (string.IsNullOrEmpty(version))
                 {
+                    Log.Error("WebView2 Runtime not found");
                     throw new InvalidOperationException("WebView2 Runtime not found");
                 }
 
-                Console.WriteLine($"WebView2 Runtime detected: {version}");
+                Log.Information("WebView2 Runtime detected: {Version}", version);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Log.Error(ex, "Failed to detect WebView2 Runtime");
                 throw new InvalidOperationException(
                     "WebView2 Runtime is required but not installed.\n\n" +
                     "Please download and install it from:\n" +
-                    "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+                    "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
+                    ex
                 );
             }
         }
 
         private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
         {
-            Console.WriteLine($"UNHANDLED EXCEPTION: {e.Message}");
-            Console.WriteLine(e.Exception?.StackTrace);
+            Log.Error(e.Exception, "UNHANDLED EXCEPTION: {Message}", e.Message);
 
             // Mark as handled to prevent app crash (for debugging)
             e.Handled = true;
 
-            // In production, you might want to show an error dialog
-            ShowFatalError($"An unexpected error occurred: {e.Message}");
+            // Show error dialog
+            ShowFatalError($"An unexpected error occurred:\n\n{e.Message}\n\nPlease check the log file at:\n%LocalAppData%\\WebPaper\\Logs");
         }
 
         private void ShowFatalError(string message)
         {
-            // For now, just write to console
-            // In a real app, you'd show a dialog with instructions
-            Console.WriteLine($"\n{new string('=', 60)}");
-            Console.WriteLine("FATAL ERROR");
-            Console.WriteLine($"{new string('=', 60)}");
-            Console.WriteLine(message);
-            Console.WriteLine($"{new string('=', 60)}\n");
+            try
+            {
+                Log.Error("Showing fatal error dialog: {Message}", message);
 
-            // TODO: Show actual dialog when running on Windows
-            // Use ContentDialog or MessageDialog
+                // Show MessageBox with error
+                Native.NativeMethods.MessageBox(
+                    IntPtr.Zero,
+                    message,
+                    "WebPaper - Fatal Error",
+                    Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONERROR
+                );
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to show error dialog");
+                // If we can't even show the error, just log it
+            }
         }
     }
 }

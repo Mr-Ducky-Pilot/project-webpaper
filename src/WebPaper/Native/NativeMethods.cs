@@ -385,5 +385,39 @@ namespace WebPaper.Native
         public const int HC_ACTION = 0;
 
         #endregion
+
+        #region Console and Debugging
+
+        /// <summary>
+        /// Allocates a new console for the calling process.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool AllocConsole();
+
+        /// <summary>
+        /// Detaches the calling process from its console.
+        /// </summary>
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool FreeConsole();
+
+        /// <summary>
+        /// Displays a modal dialog box that contains a system icon, a set of buttons, and a message.
+        /// </summary>
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
+
+        // MessageBox button constants
+        public const uint MB_OK = 0x00000000;
+        public const uint MB_OKCANCEL = 0x00000001;
+        public const uint MB_YESNO = 0x00000004;
+
+        // MessageBox icon constants
+        public const uint MB_ICONERROR = 0x00000010;
+        public const uint MB_ICONWARNING = 0x00000030;
+        public const uint MB_ICONINFORMATION = 0x00000040;
+
+        #endregion
     }
 }

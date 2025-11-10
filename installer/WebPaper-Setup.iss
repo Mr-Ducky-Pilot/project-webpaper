@@ -148,12 +148,10 @@ begin
   Result := '';
   MissingComponents := '';
 
-  // Check for required components
-  if not IsWindowsAppSDKInstalled() then
-  begin
-    MissingComponents := MissingComponents + '- Windows App SDK Runtime 1.6' + #13#10;
-  end;
+  // NOTE: Windows App SDK Runtime check removed because this is a self-contained build
+  // All Windows App SDK DLLs are included in the application folder
 
+  // Check for WebView2 (still required - not included in self-contained build)
   if not IsWebView2Installed() then
   begin
     MissingComponents := MissingComponents + '- Microsoft Edge WebView2 Runtime' + #13#10;
@@ -162,11 +160,11 @@ begin
   // If components are missing, show warning
   if MissingComponents <> '' then
   begin
-    if MsgBox('The following required components are missing:' + #13#10 + #13#10 +
+    if MsgBox('The following required component is missing:' + #13#10 + #13#10 +
               MissingComponents + #13#10 +
-              'WebPaper may not work correctly without these components.' + #13#10 + #13#10 +
+              'WebPaper requires WebView2 to display web content.' + #13#10 + #13#10 +
               'Would you like to continue with the installation?' + #13#10 +
-              '(You can install these components manually later)',
+              '(You can download WebView2 from: https://go.microsoft.com/fwlink/p/?LinkId=2124703)',
               mbConfirmation, MB_YESNO) = IDNO then
     begin
       Result := 'Installation cancelled by user.';
@@ -187,33 +185,29 @@ begin
     MissingComponents := '';
     Instructions := '';
 
-    // Build instructions for missing components
-    if not IsWindowsAppSDKInstalled() then
-    begin
-      MissingComponents := MissingComponents + '• Windows App SDK Runtime 1.6' + #13#10;
-      Instructions := Instructions +
-        'Install Windows App SDK Runtime:' + #13#10 +
-        '  winget install Microsoft.WindowsAppRuntime.1.6' + #13#10 +
-        '  OR download from: https://aka.ms/windowsappsdk/1.6/latest/windowsappruntimeinstall-x64.exe' + #13#10 + #13#10;
-    end;
+    // NOTE: Windows App SDK Runtime check removed - this is a self-contained build
+    // All runtime DLLs are included in the application folder
 
+    // Check for WebView2 (still required)
     if not IsWebView2Installed() then
     begin
       MissingComponents := MissingComponents + '• Microsoft Edge WebView2 Runtime' + #13#10;
       Instructions := Instructions +
         'Install WebView2 Runtime:' + #13#10 +
-        '  Download from: https://go.microsoft.com/fwlink/p/?LinkId=2124703' + #13#10 + #13#10;
+        '  Download from: https://go.microsoft.com/fwlink/p/?LinkId=2124703' + #13#10 +
+        '  OR run: winget install Microsoft.EdgeWebView2Runtime' + #13#10 + #13#10;
     end;
 
     // Show instructions if components are missing
     if MissingComponents <> '' then
     begin
-      MsgBox('IMPORTANT: Required Components Missing' + #13#10 + #13#10 +
-             'The following components are required to run WebPaper:' + #13#10 +
+      MsgBox('IMPORTANT: WebView2 Required' + #13#10 + #13#10 +
+             'WebPaper requires the following component:' + #13#10 +
              MissingComponents + #13#10 +
              'Installation Instructions:' + #13#10 + #13#10 +
              Instructions +
-             'WebPaper has been installed, but will not work until these components are installed.',
+             'WebPaper has been installed, but will not work until WebView2 is installed.' + #13#10 + #13#10 +
+             'WebView2 is usually pre-installed on Windows 11, but may need to be downloaded on Windows 10.',
              mbInformation, MB_OK);
     end;
   end;
