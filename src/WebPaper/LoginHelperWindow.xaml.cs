@@ -1,9 +1,12 @@
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using System;
 using System.Threading.Tasks;
 using WebPaper.Services;
+using Windows.Graphics;
+using WinRT.Interop;
 
 namespace WebPaper
 {
@@ -25,8 +28,8 @@ namespace WebPaper
             _loginUrl = loginUrl ?? throw new ArgumentNullException(nameof(loginUrl));
             _cookieManager = cookieManager ?? throw new ArgumentNullException(nameof(cookieManager));
 
-            // Set window size
-            this.AppWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 1024, Height = 768 });
+            // Set window size using proper WinUI 3 pattern
+            SetWindowSize(1024, 768);
 
             // Center window
             CenterWindow();
@@ -35,17 +38,39 @@ namespace WebPaper
             _ = InitializeAsync();
         }
 
+        private void SetWindowSize(int width, int height)
+        {
+            try
+            {
+                var hwnd = WindowNative.GetWindowHandle(this);
+                var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
+                appWindow?.Resize(new SizeInt32 { Width = width, Height = height });
+            }
+            catch
+            {
+                // Fallback - size will be default
+            }
+        }
+
         private void CenterWindow()
         {
             try
             {
-                var displayArea = Microsoft.UI.Windowing.DisplayArea.Primary;
-                var workArea = displayArea.WorkArea;
+                var hwnd = WindowNative.GetWindowHandle(this);
+                var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
 
-                var x = (workArea.Width - 1024) / 2 + workArea.X;
-                var y = (workArea.Height - 768) / 2 + workArea.Y;
+                if (appWindow != null)
+                {
+                    var displayArea = DisplayArea.Primary;
+                    var workArea = displayArea.WorkArea;
 
-                this.AppWindow.Move(new Windows.Graphics.PointInt32 { X = x, Y = y });
+                    var x = (workArea.Width - 1024) / 2 + workArea.X;
+                    var y = (workArea.Height - 768) / 2 + workArea.Y;
+
+                    appWindow.Move(new PointInt32 { X = x, Y = y });
+                }
             }
             catch
             {
