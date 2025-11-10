@@ -48,8 +48,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 
 ; ==================== UI/UX ====================
 WizardStyle=modern
-WizardImageFile=compiler:WizModernImage-IS.bmp
-WizardSmallImageFile=compiler:WizModernSmallImage-IS.bmp
+WizardImageFile=compiler:WizClassicImage-IS.bmp
+WizardSmallImageFile=compiler:WizClassicSmallImage-IS.bmp
 ; SetupIconFile={#PublishDir}\Assets\AppIcon.ico  ; TODO: Create AppIcon.ico from PNG assets
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
