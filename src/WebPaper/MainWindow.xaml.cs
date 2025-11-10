@@ -145,9 +145,10 @@ namespace WebPaper
                 );
 
                 // Create environment
-                var environment = await CoreWebView2Environment.CreateAsync(
-                    null,  // browserExecutableFolder
-                    userDataFolder  // userDataFolder
+                var environment = await CoreWebView2Environment.CreateWithOptionsAsync(
+                    null,           // browserExecutableFolder (null = use installed runtime)
+                    userDataFolder, // userDataFolder
+                    null            // options (null = use defaults)
                 );
 
                 // Initialize WebView2
