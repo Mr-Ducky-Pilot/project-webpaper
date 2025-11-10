@@ -146,6 +146,7 @@ namespace WebPaper
 
                 // Create environment
                 var environment = await CoreWebView2Environment.CreateAsync(
+                    browserExecutableFolder: null,
                     userDataFolder: userDataFolder
                 );
 
@@ -509,6 +510,8 @@ namespace WebPaper
         /// </summary>
         public async Task OpenLoginHelperAsync(string? loginUrl = null)
         {
+            await Task.CompletedTask; // Suppress async warning
+
             try
             {
                 if (_cookieManager == null)

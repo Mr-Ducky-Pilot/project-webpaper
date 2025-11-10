@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using WebPaper.Core;
 using WebPaper.Native;
 using static WebPaper.Native.NativeMethods;
 using CoreWebView2 = Microsoft.Web.WebView2.Core.CoreWebView2;
@@ -235,6 +236,8 @@ namespace WebPaper.Services
         {
             if (_webView == null || !_isPaused)
                 return;
+
+            await Task.CompletedTask; // Suppress async warning
 
             try
             {
