@@ -318,6 +318,31 @@ namespace WebPaper.Native
         }
 
         /// <summary>
+        /// Translates a virtual-key code and keyboard state to a Unicode character.
+        /// </summary>
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int ToUnicode(
+            uint wVirtKey,
+            uint wScanCode,
+            byte[] lpKeyState,
+            [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pwszBuff,
+            int cchBuff,
+            uint wFlags);
+
+        /// <summary>
+        /// Copies the status of the 256 virtual keys to the specified buffer.
+        /// </summary>
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetKeyboardState(byte[] lpKeyState);
+
+        /// <summary>
+        /// Translates a virtual-key code into a scan code or character value.
+        /// </summary>
+        [DllImport("user32.dll")]
+        public static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+        /// <summary>
         /// Retrieves the calling thread's last-error code value.
         /// </summary>
         [DllImport("kernel32.dll")]
