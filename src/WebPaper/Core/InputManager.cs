@@ -38,6 +38,12 @@ namespace WebPaper.Core
         private const int FOCUS_RETRY_INTERVAL_MS = 100; // Don't spam focus calls
         private bool _firstFocusLogged = false; // Track if we've logged focus info already
 
+        // Keyboard state tracking (to prevent duplicate WM_CHAR and global capture)
+        private POINT _lastMousePosition = new POINT { X = 0, Y = 0 };
+        private bool _mouseOverWallpaper = false;
+        private DateTime _lastMouseOverWallpaperTime = DateTime.MinValue;
+        private HashSet<int> _pressedKeys = new HashSet<int>(); // Track which keys are currently down
+
         /// <summary>
         /// Gets or sets whether input forwarding is enabled
         /// </summary>
@@ -174,23 +180,60 @@ namespace WebPaper.Core
                     var hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                     uint msg = (uint)wParam.ToInt32();
 
+                    // CRITICAL: Track mouse position for keyboard focus detection
+                    _lastMousePosition = hookStruct.pt;
+                    bool isOverWallpaper = IsClickOnWallpaper(hookStruct.pt);
+
+                    // Update wallpaper hover state and timestamp
+                    if (isOverWallpaper)
+                    {
+                        _mouseOverWallpaper = true;
+                        _lastMouseOverWallpaperTime = DateTime.Now;
+                    }
+                    else if (msg == WM_MOUSEMOVE)
+                    {
+                        // Only update on mouse move - not on scroll events
+                        // (trackpad scrolls don't move cursor, so we don't want to lose focus)
+                        _mouseOverWallpaper = false;
+                    }
+
                     // Debug: Log clicks to diagnose the issue
                     if (msg == WM_LBUTTONDOWN)
                     {
-                        // Check if this event is for the wallpaper (not desktop icons)
-                        bool shouldForward = IsClickOnWallpaper(hookStruct.pt);
-                        Console.WriteLine($"InputManager: LCLICK at ({hookStruct.pt.X},{hookStruct.pt.Y}) - Forward: {shouldForward}");
+                        Console.WriteLine($"InputManager: LCLICK at ({hookStruct.pt.X},{hookStruct.pt.Y}) - Forward: {isOverWallpaper}");
 
-                        if (shouldForward)
+                        if (isOverWallpaper)
                         {
                             // Forward to WebView2
                             ForwardMouseEvent(wParam, hookStruct);
                         }
                     }
+                    else if (msg == WM_MOUSEWHEEL)
+                    {
+                        // CRITICAL FIX: For scroll events, be more lenient!
+                        // Trackpad two-finger scroll doesn't move the cursor, so we check if
+                        // the mouse was over the wallpaper recently (within 2 seconds)
+                        TimeSpan timeSinceOverWallpaper = DateTime.Now - _lastMouseOverWallpaperTime;
+                        bool shouldForwardScroll = timeSinceOverWallpaper.TotalSeconds < 2.0;
+
+                        if (shouldForwardScroll)
+                        {
+                            // Add occasional debug logging for scroll events
+                            if (_eventCount % 20 == 0)
+                            {
+                                Console.WriteLine($"InputManager: SCROLL event - forwarding (mouse was over wallpaper {timeSinceOverWallpaper.TotalMilliseconds:F0}ms ago)");
+                            }
+                            ForwardMouseEvent(wParam, hookStruct);
+                        }
+                        else if (_eventCount % 20 == 0)
+                        {
+                            Console.WriteLine($"InputManager: SCROLL event - BLOCKED (mouse not over wallpaper for {timeSinceOverWallpaper.TotalSeconds:F1}s)");
+                        }
+                    }
                     else
                     {
-                        // For non-click events (moves, scrolls), check and forward silently
-                        if (IsClickOnWallpaper(hookStruct.pt))
+                        // For other non-click events (moves, etc.), forward only if over wallpaper
+                        if (isOverWallpaper)
                         {
                             ForwardMouseEvent(wParam, hookStruct);
                         }
@@ -217,14 +260,38 @@ namespace WebPaper.Core
                 // CRITICAL: Process quickly to avoid timeout
                 if (nCode >= HC_ACTION && _isEnabled && _webView != null)
                 {
-                    // Only forward keyboard if wallpaper has focus
-                    // (You could add focus detection here)
+                    // CRITICAL FIX: Only forward keyboard if mouse is over wallpaper!
+                    // This prevents capturing keyboard input from other apps (browser, WhatsApp, notepad, etc.)
+                    if (!_mouseOverWallpaper)
+                    {
+                        // Mouse is not over wallpaper - don't capture this keyboard input
+                        return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
+                    }
 
                     // Parse keyboard event
                     int vkCode = Marshal.ReadInt32(lParam);
+                    uint msg = (uint)wParam.ToInt32();
 
-                    // Forward to WebView2
-                    ForwardKeyboardEvent(wParam, vkCode, lParam);
+                    // Track key state to prevent duplicate WM_CHAR messages
+                    if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
+                    {
+                        // Check if this is a key repeat (key already pressed)
+                        bool isRepeat = _pressedKeys.Contains(vkCode);
+
+                        if (!isRepeat)
+                        {
+                            // First press - add to set and forward
+                            _pressedKeys.Add(vkCode);
+                            ForwardKeyboardEvent(wParam, vkCode, lParam);
+                        }
+                        // Ignore key repeats to prevent "hhheeeyyy" issue
+                    }
+                    else if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
+                    {
+                        // Key released - remove from set
+                        _pressedKeys.Remove(vkCode);
+                        ForwardKeyboardEvent(wParam, vkCode, lParam);
+                    }
                 }
             }
             catch (Exception ex)
