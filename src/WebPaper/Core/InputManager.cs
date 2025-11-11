@@ -43,7 +43,6 @@ namespace WebPaper.Core
         private POINT _lastMousePosition = new POINT { X = 0, Y = 0 };
         private bool _mouseOverWallpaper = false;
         private DateTime _lastMouseOverWallpaperTime = DateTime.MinValue;
-        private HashSet<int> _pressedKeys = new HashSet<int>(); // Track which keys are currently down
 
         /// <summary>
         /// Gets or sets whether input forwarding is enabled
@@ -217,18 +216,14 @@ namespace WebPaper.Core
                         TimeSpan timeSinceOverWallpaper = DateTime.Now - _lastMouseOverWallpaperTime;
                         bool shouldForwardScroll = timeSinceOverWallpaper.TotalSeconds < 2.0;
 
+                        // ALWAYS log scroll events to help diagnose trackpad issues
+                        short wheelDelta = (short)((hookStruct.mouseData >> 16) & 0xFFFF);
+                        Console.WriteLine($"InputManager: WM_MOUSEWHEEL delta={wheelDelta} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
+                            $"timeSinceOver={timeSinceOverWallpaper.TotalMilliseconds:F0}ms, forward={shouldForwardScroll}");
+
                         if (shouldForwardScroll)
                         {
-                            // Add occasional debug logging for scroll events
-                            if (_eventCount % 20 == 0)
-                            {
-                                Console.WriteLine($"InputManager: SCROLL event - forwarding (mouse was over wallpaper {timeSinceOverWallpaper.TotalMilliseconds:F0}ms ago)");
-                            }
                             ForwardMouseEvent(wParam, hookStruct);
-                        }
-                        else if (_eventCount % 20 == 0)
-                        {
-                            Console.WriteLine($"InputManager: SCROLL event - BLOCKED (mouse not over wallpaper for {timeSinceOverWallpaper.TotalSeconds:F1}s)");
                         }
                     }
                     else
@@ -271,28 +266,11 @@ namespace WebPaper.Core
 
                     // Parse keyboard event
                     int vkCode = Marshal.ReadInt32(lParam);
-                    uint msg = (uint)wParam.ToInt32();
 
-                    // Track key state to prevent duplicate WM_CHAR messages
-                    if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
-                    {
-                        // Check if this is a key repeat (key already pressed)
-                        bool isRepeat = _pressedKeys.Contains(vkCode);
-
-                        if (!isRepeat)
-                        {
-                            // First press - add to set and forward
-                            _pressedKeys.Add(vkCode);
-                            ForwardKeyboardEvent(wParam, vkCode, lParam);
-                        }
-                        // Ignore key repeats to prevent "hhheeeyyy" issue
-                    }
-                    else if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
-                    {
-                        // Key released - remove from set
-                        _pressedKeys.Remove(vkCode);
-                        ForwardKeyboardEvent(wParam, vkCode, lParam);
-                    }
+                    // CRITICAL FIX: Always forward WM_KEYDOWN/WM_KEYUP (including repeats)
+                    // This allows backspace, arrows, etc. to repeat when held
+                    // The ForwardKeyboardEvent will intelligently handle WM_CHAR to prevent duplicates
+                    ForwardKeyboardEvent(wParam, vkCode, lParam);
                 }
             }
             catch (Exception ex)
@@ -1012,18 +990,28 @@ namespace WebPaper.Core
             {
                 uint msg = (uint)wParam.ToInt32();
 
+                // CRITICAL: Check bit 30 of lParam to detect key repeat
+                // Bit 30 = 0: First press, Bit 30 = 1: Key repeat
+                // This is the standard Windows way to detect repeats!
+                long lParamValue = lParam.ToInt64();
+                bool isRepeat = ((lParamValue >> 30) & 1) == 1;
+
                 // Send keyboard message to Chrome_WidgetWin_1
                 if (_inputHandle != IntPtr.Zero)
                 {
                     IntPtr keyWParam = new IntPtr(vkCode);
+
+                    // ALWAYS send WM_KEYDOWN/WM_KEYUP (including repeats)
+                    // This allows backspace, arrows, etc. to repeat when held
                     PostMessage(_inputHandle, msg, keyWParam, lParam);
 
                     // CRITICAL FIX: For text input to work, we MUST send WM_CHAR messages!
                     // WM_KEYDOWN/WM_KEYUP only send virtual key codes, but text input
                     // requires WM_CHAR with the actual character.
                     //
-                    // This is why backspace (control key) works but typing letters doesn't!
-                    if (msg == WM_KEYDOWN)
+                    // BUT: Only send WM_CHAR on the FIRST keydown (not on repeats)
+                    // This prevents the "hhheeeyyy" duplicate character issue
+                    if (msg == WM_KEYDOWN && !isRepeat)
                     {
                         // Convert virtual key to character
                         char ch = VirtualKeyToChar((uint)vkCode);
