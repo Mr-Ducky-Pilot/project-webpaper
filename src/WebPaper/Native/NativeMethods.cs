@@ -46,6 +46,13 @@ namespace WebPaper.Native
         public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
         /// <summary>
+        /// Enumerates child windows of the specified parent window.
+        /// </summary>
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        /// <summary>
         /// Sends a message to the specified window with timeout.
         /// </summary>
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]

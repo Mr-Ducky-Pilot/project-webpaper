@@ -318,29 +318,139 @@ namespace WebPaper.Core
         {
             try
             {
-                // Find Chrome_WidgetWin_0 child
-                IntPtr chromeWidgetWin0 = FindWindowEx(webViewHandle, IntPtr.Zero, "Chrome_WidgetWin_0", null);
-                if (chromeWidgetWin0 == IntPtr.Zero)
+                // WebView2 might not have created all child windows yet - retry a few times
+                const int maxRetries = 10;
+                const int retryDelayMs = 100;
+
+                for (int attempt = 0; attempt < maxRetries; attempt++)
                 {
-                    Console.WriteLine("InputManager: Chrome_WidgetWin_0 not found");
-                    return IntPtr.Zero;
+                    if (attempt > 0)
+                    {
+                        Console.WriteLine($"InputManager: Retry {attempt}/{maxRetries} to find Chrome_WidgetWin_0...");
+                        Thread.Sleep(retryDelayMs);
+                    }
+
+                    // Enumerate all child windows to see what exists
+                    if (attempt == 0)
+                    {
+                        Console.WriteLine("InputManager: Enumerating child windows of WebView2:");
+                        EnumerateChildWindows(webViewHandle, 0);
+                    }
+
+                    // Find Chrome_WidgetWin_0 child
+                    IntPtr chromeWidgetWin0 = FindWindowEx(webViewHandle, IntPtr.Zero, "Chrome_WidgetWin_0", null);
+                    if (chromeWidgetWin0 == IntPtr.Zero)
+                    {
+                        if (attempt == 0)
+                            Console.WriteLine("InputManager: Chrome_WidgetWin_0 not found (yet)");
+                        continue; // Retry
+                    }
+
+                    // Find Chrome_WidgetWin_1 child of Chrome_WidgetWin_0
+                    IntPtr chromeWidgetWin1 = FindWindowEx(chromeWidgetWin0, IntPtr.Zero, "Chrome_WidgetWin_1", null);
+                    if (chromeWidgetWin1 == IntPtr.Zero)
+                    {
+                        Console.WriteLine("InputManager: Chrome_WidgetWin_0 found but Chrome_WidgetWin_1 not found");
+                        Console.WriteLine("InputManager: Enumerating children of Chrome_WidgetWin_0:");
+                        EnumerateChildWindows(chromeWidgetWin0, 1);
+                        continue; // Retry
+                    }
+
+                    Console.WriteLine($"InputManager: SUCCESS - Found Chrome_WidgetWin_1 on attempt {attempt + 1}");
+                    return chromeWidgetWin1;
                 }
 
-                // Find Chrome_WidgetWin_1 child of Chrome_WidgetWin_0
-                IntPtr chromeWidgetWin1 = FindWindowEx(chromeWidgetWin0, IntPtr.Zero, "Chrome_WidgetWin_1", null);
-                if (chromeWidgetWin1 == IntPtr.Zero)
+                Console.WriteLine($"InputManager: Failed to find Chrome_WidgetWin_1 after {maxRetries} attempts from webViewHandle");
+
+                // FALLBACK: Try searching from the main window handle
+                // The window hierarchy might be: MainWindow -> Chrome_RenderWidgetHostHWND -> Chrome_WidgetWin_0 -> Chrome_WidgetWin_1
+                Console.WriteLine("InputManager: FALLBACK - Searching from main window handle...");
+                if (_mainWindowHandle != IntPtr.Zero && _mainWindowHandle != webViewHandle)
                 {
-                    Console.WriteLine("InputManager: Chrome_WidgetWin_1 not found");
-                    return IntPtr.Zero;
+                    IntPtr result = FindWebView2InputHandleRecursive(_mainWindowHandle, 0);
+                    if (result != IntPtr.Zero)
+                    {
+                        Console.WriteLine($"InputManager: SUCCESS via fallback - Found Chrome_WidgetWin_1: 0x{result:X8}");
+                        return result;
+                    }
                 }
 
-                return chromeWidgetWin1;
+                Console.WriteLine("InputManager: All attempts exhausted - Chrome_WidgetWin_1 not found");
+                return IntPtr.Zero;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"InputManager: Error finding input handle - {ex.Message}");
                 return IntPtr.Zero;
             }
+        }
+
+        /// <summary>
+        /// Recursively searches for Chrome_WidgetWin_1 in the window hierarchy
+        /// </summary>
+        private IntPtr FindWebView2InputHandleRecursive(IntPtr parent, int depth)
+        {
+            // Prevent infinite recursion
+            if (depth > 5)
+                return IntPtr.Zero;
+
+            // First, check direct children for the pattern: Chrome_WidgetWin_0 -> Chrome_WidgetWin_1
+            IntPtr chromeWidgetWin0 = FindWindowEx(parent, IntPtr.Zero, "Chrome_WidgetWin_0", null);
+            if (chromeWidgetWin0 != IntPtr.Zero)
+            {
+                IntPtr chromeWidgetWin1 = FindWindowEx(chromeWidgetWin0, IntPtr.Zero, "Chrome_WidgetWin_1", null);
+                if (chromeWidgetWin1 != IntPtr.Zero)
+                {
+                    Console.WriteLine($"InputManager: Found at depth {depth}: Chrome_WidgetWin_1 = 0x{chromeWidgetWin1:X8}");
+                    return chromeWidgetWin1;
+                }
+            }
+
+            // If not found, search all child windows recursively
+            IntPtr child = IntPtr.Zero;
+            while (true)
+            {
+                child = FindWindowEx(parent, child, null, null);
+                if (child == IntPtr.Zero)
+                    break;
+
+                IntPtr result = FindWebView2InputHandleRecursive(child, depth + 1);
+                if (result != IntPtr.Zero)
+                    return result;
+            }
+
+            return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Helper to enumerate and log child windows for debugging
+        /// </summary>
+        private void EnumerateChildWindows(IntPtr parent, int indent)
+        {
+            IntPtr child = IntPtr.Zero;
+            int count = 0;
+            string indentStr = new string(' ', indent * 2);
+
+            while (true)
+            {
+                child = FindWindowEx(parent, child, null, null);
+                if (child == IntPtr.Zero)
+                    break;
+
+                StringBuilder className = new StringBuilder(256);
+                GetClassName(child, className, className.Capacity);
+                Console.WriteLine($"{indentStr}  Child {count}: {className} (0x{child:X8})");
+                count++;
+
+                if (count > 20) // Prevent spam
+                {
+                    Console.WriteLine($"{indentStr}  ... (more children not shown)");
+                    break;
+                }
+            }
+
+            if (count == 0)
+                Console.WriteLine($"{indentStr}  (no children)");
         }
 
         /// <summary>
