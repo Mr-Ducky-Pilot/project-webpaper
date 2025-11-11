@@ -246,6 +246,13 @@ namespace WebPaper.Native
         public static extern IntPtr WindowFromPoint(POINT Point);
 
         /// <summary>
+        /// Converts screen coordinates to client coordinates.
+        /// </summary>
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool ScreenToClient(IntPtr hWnd, ref POINT lpPoint);
+
+        /// <summary>
         /// Installs an application-defined hook procedure into a hook chain.
         /// </summary>
         [DllImport("user32.dll", SetLastError = true)]
