@@ -1,4 +1,5 @@
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -31,10 +32,15 @@ namespace WebPaper
         private AppWindow? _appWindow;
         private bool _isInitialized = false;
         private bool _wallpaperEnabled = true;
+        private DispatcherQueue? _dispatcherQueue;
 
         public MainWindow()
         {
             this.InitializeComponent();
+
+            // CRITICAL: Capture DispatcherQueue on UI thread for thread marshaling
+            // This is needed to execute WebView2 operations from background threads (like input hooks)
+            _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
 
             // Initialize window handle and AppWindow
             _windowHandle = WindowNative.GetWindowHandle(this);
@@ -397,8 +403,8 @@ namespace WebPaper
                     Log.Information($"WebView2 Handle: 0x{webViewHandle:X8}");
                 }
 
-                // Install hooks (CRITICAL: Pass main window handle for focus control)
-                _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle, _windowHandle);
+                // Install hooks (CRITICAL: Pass main window handle + DispatcherQueue for thread marshaling)
+                _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle, _windowHandle, _dispatcherQueue!);
 
                 Log.Information("Input hooks installed successfully!");
                 Console.WriteLine(_inputManager.GetDiagnostics());

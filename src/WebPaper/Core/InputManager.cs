@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.UI.Dispatching;
 using WebPaper.Models;
 using WebPaper.Native;
 using static WebPaper.Native.NativeMethods;
@@ -23,6 +24,7 @@ namespace WebPaper.Core
         private CoreWebView2? _webView;
         private IntPtr _webViewHandle = IntPtr.Zero;
         private IntPtr _mainWindowHandle = IntPtr.Zero; // ADDED: Store main window handle for focus control
+        private DispatcherQueue? _dispatcherQueue; // CRITICAL: For marshaling WebView2 calls to UI thread
         private bool _isEnabled = false;
         private bool _disposed = false;
 
@@ -59,7 +61,7 @@ namespace WebPaper.Core
         /// <summary>
         /// Installs low-level mouse and keyboard hooks
         /// </summary>
-        public void InstallHooks(CoreWebView2 webView, IntPtr webViewHandle, IntPtr mainWindowHandle)
+        public void InstallHooks(CoreWebView2 webView, IntPtr webViewHandle, IntPtr mainWindowHandle, DispatcherQueue dispatcherQueue)
         {
             if (HooksInstalled)
             {
@@ -70,6 +72,7 @@ namespace WebPaper.Core
             _webView = webView ?? throw new ArgumentNullException(nameof(webView));
             _webViewHandle = webViewHandle;
             _mainWindowHandle = mainWindowHandle; // CRITICAL: We need the main window to control focus
+            _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue)); // CRITICAL: For UI thread marshaling
 
             try
             {
@@ -365,6 +368,9 @@ namespace WebPaper.Core
         /// Simulates a mouse click by executing JavaScript directly on the webpage
         /// This bypasses all Windows focus requirements - GUARANTEED to work!
         /// Latency: ~50-200ms (acceptable for wallpaper use case)
+        ///
+        /// THREADING: Uses DispatcherQueue to marshal ExecuteScriptAsync to UI thread
+        /// WebView2 COM objects MUST be accessed from the UI thread that created them
         /// </summary>
         private void SimulateClickViaJavaScript(int x, int y)
         {
@@ -373,6 +379,12 @@ namespace WebPaper.Core
                 if (_webView == null)
                 {
                     Console.WriteLine("  ERROR: _webView is null!");
+                    return;
+                }
+
+                if (_dispatcherQueue == null)
+                {
+                    Console.WriteLine("  ERROR: _dispatcherQueue is null! Cannot marshal to UI thread.");
                     return;
                 }
 
@@ -412,13 +424,16 @@ namespace WebPaper.Core
                     }})();
                 ";
 
-                Console.WriteLine($"  Executing JavaScript...");
+                Console.WriteLine($"  Marshaling JavaScript execution to UI thread...");
 
-                // Execute and capture result (synchronous approach for debugging)
-                Task.Run(async () =>
+                // CRITICAL FIX: Use DispatcherQueue.TryEnqueue to execute on UI thread
+                // This is the WinUI 3 / Windows App SDK way to marshal calls to UI thread
+                // WebView2 COM objects require UI thread affinity (STA threading model)
+                bool enqueued = _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
                 {
                     try
                     {
+                        Console.WriteLine($"  Executing JavaScript on UI thread...");
                         var result = await _webView.ExecuteScriptAsync(script);
                         Console.WriteLine($"  JavaScript result: {result}");
                     }
@@ -426,9 +441,17 @@ namespace WebPaper.Core
                     {
                         Console.WriteLine($"  JavaScript execution FAILED: {ex.Message}");
                         Console.WriteLine($"  Exception type: {ex.GetType().Name}");
-                        Console.WriteLine($"  Stack: {ex.StackTrace}");
+                        if (ex.StackTrace != null)
+                        {
+                            Console.WriteLine($"  Stack: {ex.StackTrace}");
+                        }
                     }
-                }).ConfigureAwait(false);
+                });
+
+                if (!enqueued)
+                {
+                    Console.WriteLine($"  ERROR: Failed to enqueue JavaScript execution to UI thread!");
+                }
             }
             catch (Exception ex)
             {
