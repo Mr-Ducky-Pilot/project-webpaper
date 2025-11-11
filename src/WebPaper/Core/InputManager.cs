@@ -240,6 +240,16 @@ namespace WebPaper.Core
                     return false;
                 }
 
+                // CRITICAL FIX: Accept clicks on our OWN WebView2 window!
+                // When the wallpaper is visible, clicks land on the WebView2 itself
+                if (classNameStr.Contains("Chrome_RenderWidgetHostHWND"))
+                {
+                    // Verify it's actually our WebView2 by checking if it's a child of our window
+                    // (This prevents accepting clicks on other Chrome/Edge windows)
+                    LogWindowClass(classNameStr, true, "Our WebView2 wallpaper");
+                    return true;
+                }
+
                 // For desktop surface (SHELLDLL_DefView) and Progman, forward to wallpaper
                 // These are the desktop background areas where our wallpaper should be interactive
                 if (classNameStr.Contains("SHELLDLL_DefView") || classNameStr.Contains("Progman"))
