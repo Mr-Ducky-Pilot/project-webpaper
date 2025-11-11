@@ -371,7 +371,10 @@ namespace WebPaper.Core
             try
             {
                 if (_webView == null)
+                {
+                    Console.WriteLine("  ERROR: _webView is null!");
                     return;
+                }
 
                 // JavaScript to find element at coordinates and click it
                 string script = $@"
@@ -397,21 +400,35 @@ namespace WebPaper.Core
                                     element.click();
                                 }}
 
-                                return true;
+                                return 'SUCCESS: ' + element.tagName;
                             }} else {{
                                 console.log('WebPaper: No element found at ({x}, {y})');
-                                return false;
+                                return 'ERROR: No element found';
                             }}
                         }} catch (e) {{
                             console.error('WebPaper: Click simulation error:', e);
-                            return false;
+                            return 'ERROR: ' + e.message;
                         }}
                     }})();
                 ";
 
-                // Execute asynchronously (fire and forget to avoid blocking hook)
-                // Use Task.Run to avoid blocking the hook callback
-                _ = Task.Run(async () => await _webView.ExecuteScriptAsync(script));
+                Console.WriteLine($"  Executing JavaScript...");
+
+                // Execute and capture result (synchronous approach for debugging)
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        var result = await _webView.ExecuteScriptAsync(script);
+                        Console.WriteLine($"  JavaScript result: {result}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"  JavaScript execution FAILED: {ex.Message}");
+                        Console.WriteLine($"  Exception type: {ex.GetType().Name}");
+                        Console.WriteLine($"  Stack: {ex.StackTrace}");
+                    }
+                }).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
