@@ -8,157 +8,228 @@
     mc:Ignorable="d"
     Title="Welcome to WebPaper">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <ScrollViewer>
-            <StackPanel MaxWidth="700" Padding="40" Spacing="24">
+    <Grid>
+        <Grid.Background>
+            <!-- Pleasant blue gradient background -->
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#FF1E3A8A" Offset="0"/>
+                <GradientStop Color="#FF3B82F6" Offset="0.5"/>
+                <GradientStop Color="#FF60A5FA" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
 
-                <!-- Header -->
-                <StackPanel Spacing="12" HorizontalAlignment="Center">
-                    <TextBlock Text="🌐"
-                              FontSize="72"
-                              HorizontalAlignment="Center"/>
+        <ScrollViewer>
+            <StackPanel MaxWidth="700" Padding="40,60,40,40" Spacing="32">
+
+                <!-- Header with Logo -->
+                <StackPanel Spacing="24" HorizontalAlignment="Center">
+                    <!-- Logo -->
+                    <Border Background="White"
+                           CornerRadius="20"
+                           Width="140"
+                           Height="140"
+                           Padding="24"
+                           HorizontalAlignment="Center">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#40000000"
+                                            BlurRadius="32"
+                                            ShadowDepth="0"
+                                            Opacity="0.4"/>
+                        </Border.Effect>
+                        <Image Source="Assets/WebPaperLogo.png"
+                              Stretch="Uniform"/>
+                    </Border>
+
                     <TextBlock Text="Welcome to WebPaper"
-                              FontSize="36"
+                              FontSize="40"
                               FontWeight="Bold"
+                              Foreground="White"
                               HorizontalAlignment="Center"/>
                     <TextBlock Text="Transform any webpage into a fully interactive desktop wallpaper"
-                              FontSize="16"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              FontSize="18"
+                              Foreground="#E0FFFFFF"
                               HorizontalAlignment="Center"
                               TextWrapping="Wrap"
-                              TextAlignment="Center"/>
+                              TextAlignment="Center"
+                              MaxWidth="500"/>
                 </StackPanel>
 
-                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+                <!-- Main Content Card -->
+                <Border Background="White"
+                       CornerRadius="16"
+                       Padding="32">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#60000000"
+                                        BlurRadius="48"
+                                        ShadowDepth="0"
+                                        Opacity="0.3"/>
+                    </Border.Effect>
 
-                <!-- Features -->
-                <StackPanel Spacing="16">
-                    <TextBlock Text="✨ Features"
-                              FontSize="24"
-                              FontWeight="SemiBold"/>
+                    <StackPanel Spacing="24">
 
-                    <StackPanel Spacing="12">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="🖱️" FontSize="24" VerticalAlignment="Center"/>
-                            <StackPanel>
-                                <TextBlock Text="Fully Interactive" FontWeight="SemiBold"/>
-                                <TextBlock Text="Click, scroll, type, and interact with any website"
-                                          FontSize="12"
-                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <!-- Features -->
+                        <StackPanel Spacing="20">
+                            <TextBlock Text="✨ What You Can Do"
+                                      FontSize="22"
+                                      FontWeight="Bold"
+                                      Foreground="#FF1E3A8A"/>
+
+                            <StackPanel Spacing="16">
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <Border Background="#FFF0F9FF"
+                                           Width="48"
+                                           Height="48"
+                                           CornerRadius="24"
+                                           Padding="8">
+                                        <TextBlock Text="🖱️" FontSize="24"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Fully Interactive" FontWeight="SemiBold" FontSize="16"/>
+                                        <TextBlock Text="Click, scroll, type, and interact with any website"
+                                                  FontSize="13"
+                                                  Foreground="#FF666666"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <Border Background="#FFF0F9FF"
+                                           Width="48"
+                                           Height="48"
+                                           CornerRadius="24"
+                                           Padding="8">
+                                        <TextBlock Text="🖥️" FontSize="24"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Desktop Icons On Top" FontWeight="SemiBold" FontSize="16"/>
+                                        <TextBlock Text="Your icons remain visible and fully clickable"
+                                                  FontSize="13"
+                                                  Foreground="#FF666666"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <Border Background="#FFF0F9FF"
+                                           Width="48"
+                                           Height="48"
+                                           CornerRadius="24"
+                                           Padding="8">
+                                        <TextBlock Text="⚡" FontSize="24"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="Smart Performance" FontWeight="SemiBold" FontSize="16"/>
+                                        <TextBlock Text="Auto-pauses during games and low battery"
+                                                  FontSize="13"
+                                                  Foreground="#FF666666"/>
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="🖥️" FontSize="24" VerticalAlignment="Center"/>
-                            <StackPanel>
-                                <TextBlock Text="Desktop Icons On Top" FontWeight="SemiBold"/>
-                                <TextBlock Text="Your icons remain visible and fully clickable"
-                                          FontSize="12"
-                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <Border Height="1" Background="#FFE5E7EB" Margin="0,8,0,8"/>
+
+                        <!-- URL Input -->
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="🎯 Choose Your Wallpaper"
+                                      FontSize="22"
+                                      FontWeight="Bold"
+                                      Foreground="#FF1E3A8A"/>
+
+                            <TextBlock Text="Enter the URL of any webpage:"
+                                      Foreground="#FF666666"
+                                      FontSize="14"
+                                      TextWrapping="Wrap"/>
+
+                            <TextBox x:Name="UrlTextBox"
+                                    PlaceholderText="https://www.example.com"
+                                    Text="https://www.example.com"
+                                    MinHeight="52"
+                                    FontSize="16"
+                                    CornerRadius="8"
+                                    TextChanged="UrlTextBox_TextChanged"/>
+
+                            <TextBlock x:Name="UrlValidationText"
+                                      Foreground="#FFDC2626"
+                                      FontSize="12"
+                                      Visibility="Collapsed"/>
+
+                            <!-- Popular Suggestions -->
+                            <TextBlock Text="Or try one of these:"
+                                      FontSize="14"
+                                      Foreground="#FF666666"
+                                      Margin="0,8,0,0"/>
+
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="🎥 YouTube"
+                                           Click="SuggestionButton_Click"
+                                           Tag="https://www.youtube.com"
+                                           Padding="16,10"/>
+                                    <Button Content="📰 Reddit"
+                                           Click="SuggestionButton_Click"
+                                           Tag="https://www.reddit.com"
+                                           Padding="16,10"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="🌦️ Windy"
+                                           Click="SuggestionButton_Click"
+                                           Tag="https://www.windy.com"
+                                           Padding="16,10"/>
+                                    <Button Content="🎨 Unsplash"
+                                           Click="SuggestionButton_Click"
+                                           Tag="https://unsplash.com"
+                                           Padding="16,10"/>
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="🔐" FontSize="24" VerticalAlignment="Center"/>
-                            <StackPanel>
-                                <TextBlock Text="Secure Cookie Storage" FontWeight="SemiBold"/>
-                                <TextBlock Text="Stay logged in with encrypted authentication"
+                        <!-- Info Box -->
+                        <Border Background="#FFFEF3C7"
+                               Padding="16"
+                               CornerRadius="8"
+                               BorderBrush="#FFFCD34D"
+                               BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="💡 Tips for Best Experience"
+                                          FontWeight="SemiBold"
+                                          Foreground="#FF78350F"/>
+                                <TextBlock TextWrapping="Wrap"
                                           FontSize="12"
-                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                          Foreground="#FF92400E">
+                                    <Run Text="• Use light-colored websites for better icon visibility"/>
+                                    <LineBreak/>
+                                    <Run Text="• Websites with minimal animations save battery"/>
+                                    <LineBreak/>
+                                    <Run Text="• Right-click desktop anytime to access settings"/>
+                                    <LineBreak/>
+                                    <Run Text="• Check system tray icon for quick controls"/>
+                                </TextBlock>
                             </StackPanel>
-                        </StackPanel>
+                        </Border>
 
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="⚡" FontSize="24" VerticalAlignment="Center"/>
-                            <StackPanel>
-                                <TextBlock Text="Smart Performance" FontWeight="SemiBold"/>
-                                <TextBlock Text="Auto-pauses during games and low battery"
-                                          FontSize="12"
-                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </StackPanel>
-                </StackPanel>
+                        <!-- Action Button -->
+                        <Button Content="Get Started →"
+                               Click="GetStartedButton_Click"
+                               HorizontalAlignment="Stretch"
+                               Padding="0,16"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Margin="0,8,0,0">
+                            <Button.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#FF3B82F6" Offset="0"/>
+                                    <GradientStop Color="#FF2563EB" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Button.Background>
+                        </Button>
 
-                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
-
-                <!-- URL Input -->
-                <StackPanel Spacing="12">
-                    <TextBlock Text="🎯 Choose Your Wallpaper"
-                              FontSize="24"
-                              FontWeight="SemiBold"/>
-
-                    <TextBlock Text="Enter the URL of any webpage you want as your wallpaper:"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              TextWrapping="Wrap"/>
-
-                    <TextBox x:Name="UrlTextBox"
-                            PlaceholderText="https://www.example.com"
-                            Text="https://www.example.com"
-                            MinHeight="48"
-                            FontSize="16"
-                            TextChanged="UrlTextBox_TextChanged"/>
-
-                    <TextBlock x:Name="UrlValidationText"
-                              Foreground="Red"
-                              FontSize="12"
-                              Visibility="Collapsed"/>
-
-                    <!-- Popular Suggestions -->
-                    <TextBlock Text="Or try one of these popular choices:"
-                              FontSize="14"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Margin="0,8,0,0"/>
-
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="🎥 YouTube"
-                               Click="SuggestionButton_Click"
-                               Tag="https://www.youtube.com"/>
-                        <Button Content="📰 Reddit"
-                               Click="SuggestionButton_Click"
-                               Tag="https://www.reddit.com"/>
-                        <Button Content="🌦️ Windy"
-                               Click="SuggestionButton_Click"
-                               Tag="https://www.windy.com"/>
-                        <Button Content="🎨 Unsplash"
-                               Click="SuggestionButton_Click"
-                               Tag="https://unsplash.com"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Info Box -->
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                       Padding="16"
-                       CornerRadius="8"
-                       BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                       BorderThickness="1">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="💡 Tips for best experience:"
-                                  FontWeight="SemiBold"/>
-                        <TextBlock TextWrapping="Wrap"
-                                  FontSize="12"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                            <Run Text="• Use light-colored websites for better icon visibility"/>
-                            <LineBreak/>
-                            <Run Text="• Websites with minimal animations save battery"/>
-                            <LineBreak/>
-                            <Run Text="• Right-click the desktop anytime to access settings"/>
-                            <LineBreak/>
-                            <Run Text="• Check system tray icon for quick controls"/>
-                        </TextBlock>
                     </StackPanel>
                 </Border>
-
-                <!-- Action Buttons -->
-                <StackPanel Orientation="Horizontal"
-                           Spacing="12"
-                           HorizontalAlignment="Center"
-                           Margin="0,16,0,0">
-                    <Button Content="Get Started"
-                           Click="GetStartedButton_Click"
-                           MinWidth="160"
-                           Padding="24,12"/>
-                </StackPanel>
 
             </StackPanel>
         </ScrollViewer>
