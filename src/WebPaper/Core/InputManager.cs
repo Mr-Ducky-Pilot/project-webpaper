@@ -145,12 +145,28 @@ namespace WebPaper.Core
                 {
                     // Parse mouse event
                     var hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                    uint msg = (uint)wParam.ToInt32();
 
-                    // Check if this event is for the wallpaper (not desktop icons)
-                    if (IsClickOnWallpaper(hookStruct.pt))
+                    // Debug: Log clicks to diagnose the issue
+                    if (msg == WM_LBUTTONDOWN)
                     {
-                        // Forward to WebView2
-                        ForwardMouseEvent(wParam, hookStruct);
+                        // Check if this event is for the wallpaper (not desktop icons)
+                        bool shouldForward = IsClickOnWallpaper(hookStruct.pt);
+                        Console.WriteLine($"InputManager: LCLICK at ({hookStruct.pt.X},{hookStruct.pt.Y}) - Forward: {shouldForward}");
+
+                        if (shouldForward)
+                        {
+                            // Forward to WebView2
+                            ForwardMouseEvent(wParam, hookStruct);
+                        }
+                    }
+                    else
+                    {
+                        // For non-click events (moves, scrolls), check and forward silently
+                        if (IsClickOnWallpaper(hookStruct.pt))
+                        {
+                            ForwardMouseEvent(wParam, hookStruct);
+                        }
                     }
                 }
             }
@@ -192,6 +208,10 @@ namespace WebPaper.Core
             return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
         }
 
+        // Track last logged class to avoid spam
+        private string _lastLoggedClass = "";
+        private DateTime _lastClassLogTime = DateTime.MinValue;
+
         /// <summary>
         /// Checks if a click is on the wallpaper (not on desktop icons)
         /// </summary>
@@ -203,7 +223,10 @@ namespace WebPaper.Core
                 IntPtr hwnd = WindowFromPoint(pt);
 
                 if (hwnd == IntPtr.Zero)
+                {
+                    LogWindowClass("NULL", false, "(WindowFromPoint returned NULL)");
                     return false;
+                }
 
                 // Get the window class name
                 StringBuilder className = new StringBuilder(256);
@@ -213,6 +236,7 @@ namespace WebPaper.Core
                 // Desktop icons are in "SysListView32" window - don't forward those
                 if (classNameStr.Contains("SysListView32"))
                 {
+                    LogWindowClass(classNameStr, false, "Desktop icon list");
                     return false;
                 }
 
@@ -220,16 +244,32 @@ namespace WebPaper.Core
                 // These are the desktop background areas where our wallpaper should be interactive
                 if (classNameStr.Contains("SHELLDLL_DefView") || classNameStr.Contains("Progman"))
                 {
+                    LogWindowClass(classNameStr, true, "Desktop surface");
                     return true;
                 }
 
                 // For any other window, don't forward (might be another app)
+                LogWindowClass(classNameStr, false, "Other window (not desktop)");
                 return false;
             }
-            catch
+            catch (Exception ex)
             {
-                // On error, don't forward (safer default)
+                Console.WriteLine($"InputManager: IsClickOnWallpaper error - {ex.Message}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Logs window class detection (throttled to avoid spam)
+        /// </summary>
+        private void LogWindowClass(string className, bool willForward, string reason)
+        {
+            // Only log if class changed or it's been >5 seconds
+            if (className != _lastLoggedClass || (DateTime.Now - _lastClassLogTime).TotalSeconds > 5)
+            {
+                Console.WriteLine($"InputManager: WindowFromPoint = '{className}' -> {(willForward ? "FORWARD" : "REJECT")} ({reason})");
+                _lastLoggedClass = className;
+                _lastClassLogTime = DateTime.Now;
             }
         }
 
