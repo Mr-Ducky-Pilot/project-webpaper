@@ -111,46 +111,55 @@ namespace WebPaper
 
                 // Step 0: Load configuration
                 Log.Information("Step 0: Loading configuration...");
+                LoadingStatusText.Text = "Loading configuration...";
                 await LoadConfiguration();
                 Log.Information("Step 0: Configuration loaded");
 
                 // Step 1: Initialize system tray
                 Log.Information("Step 1: Initializing system tray...");
+                LoadingStatusText.Text = "Setting up system tray...";
                 InitializeTrayIcon();
                 Log.Information("Step 1: System tray initialized");
 
                 // Step 2: Initialize CookieManager
                 Log.Information("Step 2: Initializing CookieManager...");
+                LoadingStatusText.Text = "Initializing cookie manager...";
                 _cookieManager = new Services.CookieManager();
                 Log.Information("Step 2: CookieManager initialized");
 
                 // Step 3: Initialize WebView2
                 Log.Information("Step 3: Initializing WebView2...");
+                LoadingStatusText.Text = "Initializing web browser...";
                 await InitializeWebView2();
                 Log.Information("Step 3: WebView2 initialized");
 
                 // Step 4: Restore saved cookies (if any)
                 Log.Information("Step 4: Restoring saved cookies...");
+                LoadingStatusText.Text = "Restoring saved sessions...";
                 await RestoreSavedCookies();
                 Log.Information("Step 4: Cookies restored");
 
                 // Step 5: Attach to desktop using WorkerW
                 Log.Information("Step 5: Attaching to desktop...");
+                LoadingStatusText.Text = "Attaching to desktop...";
                 AttachToDesktop();
                 Log.Information("Step 5: Attached to desktop");
 
                 // Step 6: Install input hooks for interactivity
                 Log.Information("Step 6: Installing input hooks...");
+                LoadingStatusText.Text = "Setting up interactivity...";
                 await InstallInputHooks();
                 Log.Information("Step 6: Input hooks installed");
 
                 // Step 7: Initialize performance monitoring
                 Log.Information("Step 7: Initializing performance manager...");
+                LoadingStatusText.Text = "Optimizing performance...";
                 InitializePerformanceManager();
                 Log.Information("Step 7: Performance manager initialized");
 
                 // Step 8: Check if first run and show welcome
                 Log.Information("Step 8: Checking first run...");
+                LoadingStatusText.Text = "Almost ready...";
                 await CheckFirstRun();
                 Log.Information("Step 8: First run check complete");
 
@@ -844,24 +853,61 @@ namespace WebPaper
             }
             else
             {
-                Log.Information($"Navigation failed: {args.WebErrorStatus}");
-                ShowError($"Failed to load webpage: {args.WebErrorStatus}");
+                // Only show error for critical failures, not redirects or temporary issues
+                var errorStatus = args.WebErrorStatus.ToString();
+                Log.Warning($"Navigation completed with error: {errorStatus}");
+
+                // Don't show error for common non-critical statuses
+                if (errorStatus != "OperationCanceled" &&
+                    errorStatus != "Unknown" &&
+                    !errorStatus.Contains("Redirect"))
+                {
+                    ShowError($"Failed to load webpage: {errorStatus}\n\nPlease check your internet connection or try a different URL.");
+                }
             }
         }
 
-        private async void ShowError(string message)
+        private void ShowError(string message)
         {
             // Hide loading, show error
             LoadingPanel.Visibility = Visibility.Collapsed;
             ErrorPanel.Visibility = Visibility.Visible;
             ErrorMessage.Text = message;
 
-            Log.Error($"ERROR: {message}");
+            Log.Error($"ERROR SHOWN: {message}");
+        }
 
-            // Auto-dismiss error after 5 seconds
-            await Task.Delay(5000);
-            ErrorPanel.Visibility = Visibility.Collapsed;
-            Log.Information("Error panel auto-dismissed");
+        private void RetryButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Log.Information("Retry button clicked");
+                ErrorPanel.Visibility = Visibility.Collapsed;
+                LoadingPanel.Visibility = Visibility.Visible;
+
+                // Reload the page
+                if (webView?.CoreWebView2 != null && _config != null)
+                {
+                    webView.CoreWebView2.Navigate(_config.WallpaperUrl);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during retry");
+            }
+        }
+
+        private void ExitButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Log.Information("Exit button clicked from error panel");
+                Application.Current.Exit();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during exit");
+            }
         }
 
         private async void MainWindow_Closed(object sender, WindowEventArgs args)
