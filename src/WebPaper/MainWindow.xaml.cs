@@ -232,19 +232,74 @@ namespace WebPaper
         {
             try
             {
+                Log.Information($"Step 5.1: Preparing window for desktop attachment...");
+                Log.Information($"Window handle: 0x{_windowHandle:X8}");
+
+                // CRITICAL: Set window styles BEFORE attaching to WorkerW
+                // Remove caption, borders, and set as child window
+                Log.Information("Step 5.2: Removing window decorations (title bar, borders, buttons)...");
+
+                // Get current window style
+                int currentStyle = Native.NativeMethods.GetWindowLong(_windowHandle, Native.NativeMethods.GWL_STYLE);
+                Log.Information($"Current window style: 0x{currentStyle:X8}");
+
+                // Remove: WS_CAPTION (title bar), WS_THICKFRAME (borders), WS_SYSMENU (system menu)
+                // Add: WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS
+                int newStyle = currentStyle;
+                newStyle &= ~(int)(Native.NativeMethods.WS_CAPTION | Native.NativeMethods.WS_THICKFRAME | Native.NativeMethods.WS_SYSMENU);
+                newStyle |= (int)(Native.NativeMethods.WS_VISIBLE | Native.NativeMethods.WS_CLIPCHILDREN | Native.NativeMethods.WS_CLIPSIBLINGS);
+
+                Native.NativeMethods.SetWindowLong(_windowHandle, Native.NativeMethods.GWL_STYLE, newStyle);
+                Log.Information($"New window style: 0x{newStyle:X8}");
+
+                // Set extended window style to prevent activation
+                int currentExStyle = Native.NativeMethods.GetWindowLong(_windowHandle, Native.NativeMethods.GWL_EXSTYLE);
+                int newExStyle = currentExStyle | (int)Native.NativeMethods.WS_EX_NOACTIVATE;
+                Native.NativeMethods.SetWindowLong(_windowHandle, Native.NativeMethods.GWL_EXSTYLE, newExStyle);
+                Log.Information($"Extended window style: 0x{newExStyle:X8}");
+
+                // Force the window to update with new styles
+                Log.Information("Step 5.3: Applying window style changes...");
+                Native.NativeMethods.SetWindowPos(
+                    _windowHandle,
+                    IntPtr.Zero,
+                    0, 0, 0, 0,
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOMOVE |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOSIZE |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_FRAMECHANGED
+                );
+
                 // Create WorkerW manager
+                Log.Information("Step 5.4: Finding or creating WorkerW window...");
                 _workerWManager = new WorkerWManager();
 
                 // Find or create WorkerW window
                 var workerW = _workerWManager.FindOrCreateWorkerW();
+                Log.Information($"WorkerW handle: 0x{workerW:X8}");
 
-                // Attach our window to desktop
+                // Attach our window to desktop (sets as child of WorkerW)
+                Log.Information("Step 5.5: Setting window as child of WorkerW...");
                 _workerWManager.AttachWindowToDesktop(_windowHandle);
 
-                Log.Information($"Successfully attached to desktop. WorkerW: 0x{workerW:X8}");
+                // Verify attachment
+                IntPtr parent = Native.NativeMethods.GetParent(_windowHandle);
+                Log.Information($"Window parent after attachment: 0x{parent:X8}");
+
+                if (parent == workerW)
+                {
+                    Log.Information("✓ Window successfully attached to WorkerW!");
+                }
+                else
+                {
+                    Log.Warning($"! Window parent mismatch. Expected: 0x{workerW:X8}, Got: 0x{parent:X8}");
+                }
+
+                Log.Information($"Step 5.6: Desktop attachment complete!");
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Failed to attach window to desktop");
                 throw new InvalidOperationException("Failed to attach window to desktop", ex);
             }
         }
@@ -657,14 +712,19 @@ namespace WebPaper
             }
         }
 
-        private void ShowError(string message)
+        private async void ShowError(string message)
         {
             // Hide loading, show error
             LoadingPanel.Visibility = Visibility.Collapsed;
             ErrorPanel.Visibility = Visibility.Visible;
             ErrorMessage.Text = message;
 
-            Log.Error($" {message}");
+            Log.Error($"ERROR: {message}");
+
+            // Auto-dismiss error after 5 seconds
+            await Task.Delay(5000);
+            ErrorPanel.Visibility = Visibility.Collapsed;
+            Log.Information("Error panel auto-dismissed");
         }
 
         private async void MainWindow_Closed(object sender, WindowEventArgs args)

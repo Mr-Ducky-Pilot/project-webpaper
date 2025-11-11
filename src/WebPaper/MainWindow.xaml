@@ -10,8 +10,8 @@
 
     <Grid x:Name="RootGrid" Background="Transparent">
         <!-- WebView2 will render the webpage here -->
+        <!-- IMPORTANT: No Source property - we initialize manually with custom environment -->
         <WebView2 x:Name="webView"
-                  Source="https://blink42.com"
                   DefaultBackgroundColor="Transparent">
             <WebView2.ContextFlyout>
                 <MenuFlyout>
