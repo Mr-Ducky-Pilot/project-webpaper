@@ -32,6 +32,7 @@ namespace WebPaper.Core
         // Focus management
         private DateTime _lastFocusAttempt = DateTime.MinValue;
         private const int FOCUS_RETRY_INTERVAL_MS = 100; // Don't spam focus calls
+        private bool _firstFocusLogged = false; // Track if we've logged focus info already
 
         /// <summary>
         /// Gets or sets whether input forwarding is enabled
@@ -388,8 +389,7 @@ namespace WebPaper.Core
                 IntPtr focusResult = SetFocus(_webViewHandle);
 
                 // Debug logging (only on first click to avoid spam)
-                static bool firstFocus = true;
-                if (firstFocus)
+                if (!_firstFocusLogged)
                 {
                     Console.WriteLine($"InputManager: AcquireWebViewFocus() - Modern Approach (2024)");
                     Console.WriteLine($"  SetForegroundWindow(_mainWindowHandle=0x{_mainWindowHandle:X8}) = {foregroundSet}");
@@ -398,7 +398,7 @@ namespace WebPaper.Core
                     {
                         Console.WriteLine($"  WARNING: SetFocus failed! Error: {GetLastError()}");
                     }
-                    firstFocus = false;
+                    _firstFocusLogged = true;
                 }
             }
             catch (Exception ex)
