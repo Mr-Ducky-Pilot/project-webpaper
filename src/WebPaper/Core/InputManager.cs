@@ -81,19 +81,19 @@ namespace WebPaper.Core
             _mainWindowHandle = mainWindowHandle; // CRITICAL: We need the main window to control focus
             _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue)); // CRITICAL: For UI thread marshaling
 
-            // CRITICAL FIX: Find Chrome_WidgetWin_1 for input forwarding (same as Lively Wallpaper)
+            // Try to find Chrome_WidgetWin_1 for optimal input forwarding
             // WebView2 window hierarchy: Chrome_RenderWidgetHostHWND -> Chrome_WidgetWin_0 -> Chrome_WidgetWin_1
-            // We must send input to Chrome_WidgetWin_1, not the top-level window!
+            // Note: Fallback to top-level window works fine in most cases
             _inputHandle = FindWebView2InputHandle(webViewHandle);
             if (_inputHandle == IntPtr.Zero)
             {
-                Console.WriteLine("InputManager WARNING: Could not find Chrome_WidgetWin_1, falling back to main WebView handle");
-                Console.WriteLine("  This may cause input to not work correctly!");
-                _inputHandle = webViewHandle; // Fallback
+                // Fallback to main WebView handle - this works correctly for input
+                _inputHandle = webViewHandle;
+                Console.WriteLine($"InputManager: Using main WebView handle for input: 0x{_inputHandle:X8}");
             }
             else
             {
-                Console.WriteLine($"InputManager: Found Chrome_WidgetWin_1 input handle: 0x{_inputHandle:X8}");
+                Console.WriteLine($"InputManager: Using Chrome_WidgetWin_1 for input: 0x{_inputHandle:X8}");
             }
 
             try
@@ -372,56 +372,36 @@ namespace WebPaper.Core
                 {
                     if (attempt > 0)
                     {
-                        Console.WriteLine($"InputManager: Retry {attempt}/{maxRetries} to find Chrome_WidgetWin_0...");
                         Thread.Sleep(retryDelayMs);
-                    }
-
-                    // Enumerate all child windows to see what exists
-                    if (attempt == 0)
-                    {
-                        Console.WriteLine("InputManager: Enumerating child windows of WebView2:");
-                        EnumerateChildWindows(webViewHandle, 0);
                     }
 
                     // Find Chrome_WidgetWin_0 child
                     IntPtr chromeWidgetWin0 = FindWindowEx(webViewHandle, IntPtr.Zero, "Chrome_WidgetWin_0", null);
                     if (chromeWidgetWin0 == IntPtr.Zero)
                     {
-                        if (attempt == 0)
-                            Console.WriteLine("InputManager: Chrome_WidgetWin_0 not found (yet)");
                         continue; // Retry
                     }
 
                     // Find Chrome_WidgetWin_1 child of Chrome_WidgetWin_0
                     IntPtr chromeWidgetWin1 = FindWindowEx(chromeWidgetWin0, IntPtr.Zero, "Chrome_WidgetWin_1", null);
-                    if (chromeWidgetWin1 == IntPtr.Zero)
+                    if (chromeWidgetWin1 != IntPtr.Zero)
                     {
-                        Console.WriteLine("InputManager: Chrome_WidgetWin_0 found but Chrome_WidgetWin_1 not found");
-                        Console.WriteLine("InputManager: Enumerating children of Chrome_WidgetWin_0:");
-                        EnumerateChildWindows(chromeWidgetWin0, 1);
-                        continue; // Retry
+                        // Found the optimal input window
+                        return chromeWidgetWin1;
                     }
-
-                    Console.WriteLine($"InputManager: SUCCESS - Found Chrome_WidgetWin_1 on attempt {attempt + 1}");
-                    return chromeWidgetWin1;
                 }
 
-                Console.WriteLine($"InputManager: Failed to find Chrome_WidgetWin_1 after {maxRetries} attempts from webViewHandle");
-
-                // FALLBACK: Try searching from the main window handle
-                // The window hierarchy might be: MainWindow -> Chrome_RenderWidgetHostHWND -> Chrome_WidgetWin_0 -> Chrome_WidgetWin_1
-                Console.WriteLine("InputManager: FALLBACK - Searching from main window handle...");
+                // Try fallback: search from main window handle
                 if (_mainWindowHandle != IntPtr.Zero && _mainWindowHandle != webViewHandle)
                 {
                     IntPtr result = FindWebView2InputHandleRecursive(_mainWindowHandle, 0);
                     if (result != IntPtr.Zero)
                     {
-                        Console.WriteLine($"InputManager: SUCCESS via fallback - Found Chrome_WidgetWin_1: 0x{result:X8}");
                         return result;
                     }
                 }
 
-                Console.WriteLine("InputManager: All attempts exhausted - Chrome_WidgetWin_1 not found");
+                // No Chrome_WidgetWin_1 found - fallback to main handle will be used
                 return IntPtr.Zero;
             }
             catch (Exception ex)

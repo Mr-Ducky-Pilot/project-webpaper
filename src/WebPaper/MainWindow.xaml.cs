@@ -479,6 +479,7 @@ namespace WebPaper
                 _trayIconManager.ShowAboutRequested += (s, e) => ShowAbout();
                 _trayIconManager.ExitRequested += (s, e) => ExitApplication();
                 _trayIconManager.ToggleWallpaperRequested += (s, e) => ToggleWallpaper();
+                _trayIconManager.GoToHomePageRequested += (s, e) => GoToHomePage();
 
                 Log.Information("System tray icon initialized");
             }
@@ -634,6 +635,34 @@ namespace WebPaper
             catch (Exception ex)
             {
                 Log.Error(ex, "Error toggling wallpaper");
+            }
+        }
+
+        private void GoToHomePage()
+        {
+            try
+            {
+                if (_config != null && !string.IsNullOrWhiteSpace(_config.WallpaperUrl))
+                {
+                    Log.Information($"Navigating to home page: {_config.WallpaperUrl}");
+                    webView.CoreWebView2?.Navigate(_config.WallpaperUrl);
+                    _trayIconManager?.ShowNotification(
+                        "Home Page",
+                        $"Navigating to {_config.WallpaperUrl}",
+                        System.Windows.Forms.ToolTipIcon.Info);
+                }
+                else
+                {
+                    Log.Warning("Cannot navigate to home page - URL not configured");
+                    _trayIconManager?.ShowNotification(
+                        "Error",
+                        "Home page URL not configured",
+                        System.Windows.Forms.ToolTipIcon.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error navigating to home page");
             }
         }
 
