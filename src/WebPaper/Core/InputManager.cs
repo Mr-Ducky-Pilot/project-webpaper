@@ -198,14 +198,24 @@ namespace WebPaper.Core
                     }
 
                     // Debug: Log clicks to diagnose the issue
-                    if (msg == WM_LBUTTONDOWN)
+                    if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK)
                     {
-                        Console.WriteLine($"InputManager: LCLICK at ({hookStruct.pt.X},{hookStruct.pt.Y}) - Forward: {isOverWallpaper}");
+                        // Get detailed click target information
+                        var (isOnWallpaper, iconWindow) = GetClickTarget(hookStruct.pt);
 
-                        if (isOverWallpaper)
+                        Console.WriteLine($"InputManager: {GetMouseEventName(msg)} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
+                            $"OnWallpaper: {isOnWallpaper}, IconWindow: 0x{iconWindow:X8}");
+
+                        if (isOnWallpaper)
                         {
-                            // Forward to WebView2
+                            // Forward to WebView2 wallpaper
                             ForwardMouseEvent(wParam, hookStruct);
+                        }
+                        else if (iconWindow != IntPtr.Zero)
+                        {
+                            // CRITICAL FIX: Forward clicks to desktop icons!
+                            // Our wallpaper window blocks the clicks, so we need to explicitly forward them
+                            ForwardToDesktopIcons(iconWindow, msg, hookStruct);
                         }
                     }
                     else if (msg == WM_MOUSEWHEEL)
@@ -284,11 +294,13 @@ namespace WebPaper.Core
         // Track last logged class to avoid spam
         private string _lastLoggedClass = "";
         private DateTime _lastClassLogTime = DateTime.MinValue;
+        private IntPtr _lastDesktopIconWindow = IntPtr.Zero; // Cache desktop icon window
 
         /// <summary>
         /// Checks if a click is on the wallpaper (not on desktop icons)
+        /// Returns the window handle if it's a desktop icon window (for click forwarding)
         /// </summary>
-        private bool IsClickOnWallpaper(POINT pt)
+        private (bool isOnWallpaper, IntPtr targetWindow) GetClickTarget(POINT pt)
         {
             try
             {
@@ -298,7 +310,7 @@ namespace WebPaper.Core
                 if (hwnd == IntPtr.Zero)
                 {
                     LogWindowClass("NULL", false, "(WindowFromPoint returned NULL)");
-                    return false;
+                    return (false, IntPtr.Zero);
                 }
 
                 // Get the window class name
@@ -306,11 +318,12 @@ namespace WebPaper.Core
                 GetClassName(hwnd, className, className.Capacity);
                 string classNameStr = className.ToString();
 
-                // Desktop icons are in "SysListView32" window - don't forward those
+                // Desktop icons are in "SysListView32" window - need to forward these!
                 if (classNameStr.Contains("SysListView32"))
                 {
-                    LogWindowClass(classNameStr, false, "Desktop icon list");
-                    return false;
+                    LogWindowClass(classNameStr, false, "Desktop icon list - will forward to icons");
+                    _lastDesktopIconWindow = hwnd; // Cache for future use
+                    return (false, hwnd); // Not wallpaper, but return icon window handle
                 }
 
                 // CRITICAL FIX: Accept clicks on our OWN WebView2 window!
@@ -320,7 +333,7 @@ namespace WebPaper.Core
                     // Verify it's actually our WebView2 by checking if it's a child of our window
                     // (This prevents accepting clicks on other Chrome/Edge windows)
                     LogWindowClass(classNameStr, true, "Our WebView2 wallpaper");
-                    return true;
+                    return (true, IntPtr.Zero);
                 }
 
                 // For desktop surface (SHELLDLL_DefView) and Progman, forward to wallpaper
@@ -328,18 +341,27 @@ namespace WebPaper.Core
                 if (classNameStr.Contains("SHELLDLL_DefView") || classNameStr.Contains("Progman"))
                 {
                     LogWindowClass(classNameStr, true, "Desktop surface");
-                    return true;
+                    return (true, IntPtr.Zero);
                 }
 
                 // For any other window, don't forward (might be another app)
                 LogWindowClass(classNameStr, false, "Other window (not desktop)");
-                return false;
+                return (false, IntPtr.Zero);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: IsClickOnWallpaper error - {ex.Message}");
-                return false;
+                Console.WriteLine($"InputManager: GetClickTarget error - {ex.Message}");
+                return (false, IntPtr.Zero);
             }
+        }
+
+        /// <summary>
+        /// Checks if a click is on the wallpaper (not on desktop icons) - compatibility wrapper
+        /// </summary>
+        private bool IsClickOnWallpaper(POINT pt)
+        {
+            var (isOnWallpaper, _) = GetClickTarget(pt);
+            return isOnWallpaper;
         }
 
         /// <summary>
@@ -564,6 +586,67 @@ namespace WebPaper.Core
             {
                 Console.WriteLine($"InputManager: Failed to forward mouse event - {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Forwards mouse clicks to the desktop icon window (SysListView32)
+        /// Our wallpaper physically blocks clicks, so we explicitly forward them
+        /// </summary>
+        private void ForwardToDesktopIcons(IntPtr iconWindow, uint msg, MSLLHOOKSTRUCT hookStruct)
+        {
+            try
+            {
+                // Convert screen coordinates to client coordinates of the icon window
+                POINT clientPt = hookStruct.pt;
+                ScreenToClient(iconWindow, ref clientPt);
+
+                // Build lParam: low-word = x, high-word = y
+                IntPtr lParam = MakeLParam(clientPt.X, clientPt.Y);
+
+                // Build wParam with mouse button state
+                IntPtr mouseWParam = IntPtr.Zero; // Desktop icons don't need button state in wParam
+
+                Console.WriteLine($"InputManager: Forwarding {GetMouseEventName(msg)} to desktop icons at " +
+                    $"screen({hookStruct.pt.X},{hookStruct.pt.Y}) -> client({clientPt.X},{clientPt.Y})");
+
+                // Send the message to the icon window
+                // Use SendMessage for clicks (synchronous) to ensure proper event ordering
+                SendMessage(iconWindow, msg, mouseWParam, lParam);
+
+                // CRITICAL: For mouse down, we also need to send corresponding mouse up
+                // Otherwise the desktop thinks the button is stuck down
+                if (msg == WM_LBUTTONDOWN)
+                {
+                    SendMessage(iconWindow, WM_LBUTTONUP, mouseWParam, lParam);
+                }
+                else if (msg == WM_RBUTTONDOWN)
+                {
+                    SendMessage(iconWindow, WM_RBUTTONUP, mouseWParam, lParam);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"InputManager: Failed to forward to desktop icons - {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Helper to get mouse event name for logging
+        /// </summary>
+        private string GetMouseEventName(uint msg)
+        {
+            return msg switch
+            {
+                WM_LBUTTONDOWN => "LBUTTONDOWN",
+                WM_LBUTTONUP => "LBUTTONUP",
+                WM_RBUTTONDOWN => "RBUTTONDOWN",
+                WM_RBUTTONUP => "RBUTTONUP",
+                WM_LBUTTONDBLCLK => "LBUTTONDBLCLK",
+                WM_RBUTTONDBLCLK => "RBUTTONDBLCLK",
+                WM_MOUSEMOVE => "MOUSEMOVE",
+                WM_MOUSEWHEEL => "MOUSEWHEEL",
+                _ => $"0x{msg:X4}"
+            };
         }
 
         /// <summary>
