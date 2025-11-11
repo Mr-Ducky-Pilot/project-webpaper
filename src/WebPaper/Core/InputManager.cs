@@ -476,23 +476,57 @@ namespace WebPaper.Core
                 // Forward input to WebView2's Chrome_WidgetWin_1 child window (discovered from Lively Wallpaper)
                 if (_inputHandle != IntPtr.Zero)
                 {
-                    // Convert screen coordinates to client coordinates
-                    POINT clientPt = pt;
-                    ScreenToClient(_inputHandle, ref clientPt);
-
-                    // Build lParam: low-word = x, high-word = y
-                    IntPtr lParam = MakeLParam(clientPt.X, clientPt.Y);
-                    IntPtr mouseWParam = MakeMouseWParam(hookStruct);
-
-                    // For clicks, log the action
-                    if (msg == WM_LBUTTONDOWN)
+                    // CRITICAL FIX: WM_MOUSEWHEEL requires special handling!
+                    // For scroll events, wParam contains the wheel delta in high-order word
+                    // and lParam contains coordinates in screen space (not client space!)
+                    if (msg == WM_MOUSEWHEEL)
                     {
-                        Console.WriteLine($"InputManager: LCLICK at screen({pt.X},{pt.Y}) -> client({clientPt.X},{clientPt.Y})");
-                        Console.WriteLine($"  Forwarding to Chrome_WidgetWin_1 via PostMessage");
-                    }
+                        // Extract wheel delta from mouseData (high-order word)
+                        // Positive = scroll up/away, Negative = scroll down/toward
+                        short wheelDelta = (short)((hookStruct.mouseData >> 16) & 0xFFFF);
 
-                    // Forward the message using PostMessage (works because we're using the correct child window!)
-                    PostMessage(_inputHandle, msg, mouseWParam, lParam);
+                        // Build wParam: high-word = wheel delta, low-word = modifier keys
+                        int modifiers = 0;
+                        if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
+                            modifiers |= 0x0008; // MK_CONTROL
+                        if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
+                            modifiers |= 0x0004; // MK_SHIFT
+
+                        IntPtr scrollWParam = new IntPtr((wheelDelta << 16) | modifiers);
+
+                        // For WM_MOUSEWHEEL, lParam should be in SCREEN coordinates, not client
+                        IntPtr scrollLParam = MakeLParam(pt.X, pt.Y);
+
+                        // Log scroll events (occasionally)
+                        if (_eventCount % 10 == 0) // Log every 10th scroll event to reduce spam
+                        {
+                            Console.WriteLine($"InputManager: SCROLL delta={wheelDelta} at screen({pt.X},{pt.Y})");
+                        }
+
+                        // Send scroll message
+                        PostMessage(_inputHandle, msg, scrollWParam, scrollLParam);
+                    }
+                    else
+                    {
+                        // Regular mouse events (clicks, moves, etc.)
+                        // Convert screen coordinates to client coordinates
+                        POINT clientPt = pt;
+                        ScreenToClient(_inputHandle, ref clientPt);
+
+                        // Build lParam: low-word = x, high-word = y
+                        IntPtr lParam = MakeLParam(clientPt.X, clientPt.Y);
+                        IntPtr mouseWParam = MakeMouseWParam(hookStruct);
+
+                        // For clicks, log the action
+                        if (msg == WM_LBUTTONDOWN)
+                        {
+                            Console.WriteLine($"InputManager: LCLICK at screen({pt.X},{pt.Y}) -> client({clientPt.X},{clientPt.Y})");
+                            Console.WriteLine($"  Forwarding to Chrome_WidgetWin_1 via PostMessage");
+                        }
+
+                        // Forward the message using PostMessage (works because we're using the correct child window!)
+                        PostMessage(_inputHandle, msg, mouseWParam, lParam);
+                    }
                 }
                 else
                 {
@@ -915,11 +949,71 @@ namespace WebPaper.Core
                 {
                     IntPtr keyWParam = new IntPtr(vkCode);
                     PostMessage(_inputHandle, msg, keyWParam, lParam);
+
+                    // CRITICAL FIX: For text input to work, we MUST send WM_CHAR messages!
+                    // WM_KEYDOWN/WM_KEYUP only send virtual key codes, but text input
+                    // requires WM_CHAR with the actual character.
+                    //
+                    // This is why backspace (control key) works but typing letters doesn't!
+                    if (msg == WM_KEYDOWN)
+                    {
+                        // Convert virtual key to character
+                        char ch = VirtualKeyToChar((uint)vkCode);
+                        if (ch != '\0') // If it's a printable character
+                        {
+                            // Send WM_CHAR message with the character
+                            IntPtr charWParam = new IntPtr(ch);
+                            PostMessage(_inputHandle, WM_CHAR, charWParam, IntPtr.Zero);
+
+                            // Log for debugging (only occasionally to avoid spam)
+                            if (char.IsLetterOrDigit(ch) || char.IsPunctuation(ch) || ch == ' ')
+                            {
+                                Console.WriteLine($"InputManager: Sent WM_CHAR for '{ch}' (0x{(int)ch:X2})");
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"InputManager: Failed to forward keyboard event - {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Converts a virtual key code to a character using current keyboard state
+        /// Returns '\0' if the key doesn't produce a character (e.g., Shift, Ctrl)
+        /// </summary>
+        private char VirtualKeyToChar(uint vkCode)
+        {
+            try
+            {
+                // Get current keyboard state (for modifiers like Shift)
+                byte[] keyboardState = new byte[256];
+                if (!GetKeyboardState(keyboardState))
+                    return '\0';
+
+                // Get scan code from virtual key
+                uint scanCode = MapVirtualKey(vkCode, 0); // MAPVK_VK_TO_VSC = 0
+
+                // Convert to Unicode character
+                StringBuilder result = new StringBuilder(5);
+                int ret = ToUnicode(vkCode, scanCode, keyboardState, result, result.Capacity, 0);
+
+                if (ret == 1) // Successfully converted to 1 character
+                {
+                    return result[0];
+                }
+                else if (ret == 2) // Dead key or multi-character (rare)
+                {
+                    return result[0]; // Return first character
+                }
+
+                return '\0'; // No character (control key, etc.)
+            }
+            catch
+            {
+                return '\0';
             }
         }
 
