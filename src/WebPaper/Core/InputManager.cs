@@ -44,6 +44,9 @@ namespace WebPaper.Core
         private bool _mouseOverWallpaper = false;
         private DateTime _lastMouseOverWallpaperTime = DateTime.MinValue;
 
+        // Desktop icon window (SysListView32) - cached for click forwarding
+        private IntPtr _desktopIconWindow = IntPtr.Zero;
+
         /// <summary>
         /// Gets or sets whether input forwarding is enabled
         /// </summary>
@@ -94,6 +97,18 @@ namespace WebPaper.Core
             else
             {
                 Console.WriteLine($"InputManager: Using Chrome_WidgetWin_1 for input: 0x{_inputHandle:X8}");
+            }
+
+            // CRITICAL FIX: Find desktop icon window (SysListView32) for click forwarding
+            // Our wallpaper blocks WindowFromPoint(), so we cache the icon window handle
+            _desktopIconWindow = FindDesktopIconWindow();
+            if (_desktopIconWindow != IntPtr.Zero)
+            {
+                Console.WriteLine($"InputManager: Found desktop icon window (SysListView32): 0x{_desktopIconWindow:X8}");
+            }
+            else
+            {
+                Console.WriteLine("InputManager: WARNING - Could not find desktop icon window (SysListView32)");
             }
 
             try
@@ -200,22 +215,20 @@ namespace WebPaper.Core
                     // Debug: Log clicks to diagnose the issue
                     if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK)
                     {
-                        // Get detailed click target information
-                        var (isOnWallpaper, iconWindow) = GetClickTarget(hookStruct.pt);
-
                         Console.WriteLine($"InputManager: {GetMouseEventName(msg)} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
-                            $"OnWallpaper: {isOnWallpaper}, IconWindow: 0x{iconWindow:X8}");
+                            $"OnWallpaper: {isOverWallpaper}, IconWindow: 0x{_desktopIconWindow:X8}");
 
-                        if (isOnWallpaper)
+                        if (isOverWallpaper)
                         {
                             // Forward to WebView2 wallpaper
                             ForwardMouseEvent(wParam, hookStruct);
                         }
-                        else if (iconWindow != IntPtr.Zero)
+                        else if (_desktopIconWindow != IntPtr.Zero)
                         {
                             // CRITICAL FIX: Forward clicks to desktop icons!
-                            // Our wallpaper window blocks the clicks, so we need to explicitly forward them
-                            ForwardToDesktopIcons(iconWindow, msg, hookStruct);
+                            // Our wallpaper blocks WindowFromPoint(), so we use the cached handle
+                            // SysListView32 will handle the click if it's over an icon, ignore it otherwise
+                            ForwardToDesktopIcons(_desktopIconWindow, msg, hookStruct);
                         }
                     }
                     else if (msg == WM_MOUSEWHEEL)
@@ -375,6 +388,58 @@ namespace WebPaper.Core
                 Console.WriteLine($"InputManager: WindowFromPoint = '{className}' -> {(willForward ? "FORWARD" : "REJECT")} ({reason})");
                 _lastLoggedClass = className;
                 _lastClassLogTime = DateTime.Now;
+            }
+        }
+
+        /// <summary>
+        /// Finds the desktop icon window (SysListView32)
+        /// Desktop hierarchy: Progman -> SHELLDLL_DefView -> SysListView32
+        /// Or: WorkerW -> SHELLDLL_DefView -> SysListView32
+        /// </summary>
+        private IntPtr FindDesktopIconWindow()
+        {
+            try
+            {
+                // Try finding via Progman first
+                IntPtr progman = FindWindow("Progman", "Program Manager");
+                if (progman != IntPtr.Zero)
+                {
+                    IntPtr defView = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
+                    if (defView != IntPtr.Zero)
+                    {
+                        IntPtr sysListView = FindWindowEx(defView, IntPtr.Zero, "SysListView32", "FolderView");
+                        if (sysListView != IntPtr.Zero)
+                        {
+                            return sysListView;
+                        }
+                    }
+                }
+
+                // Try finding via WorkerW (Windows 10/11 with picture rotation)
+                IntPtr workerW = IntPtr.Zero;
+                do
+                {
+                    workerW = FindWindowEx(IntPtr.Zero, workerW, "WorkerW", null);
+                    if (workerW != IntPtr.Zero)
+                    {
+                        IntPtr defView = FindWindowEx(workerW, IntPtr.Zero, "SHELLDLL_DefView", null);
+                        if (defView != IntPtr.Zero)
+                        {
+                            IntPtr sysListView = FindWindowEx(defView, IntPtr.Zero, "SysListView32", "FolderView");
+                            if (sysListView != IntPtr.Zero)
+                            {
+                                return sysListView;
+                            }
+                        }
+                    }
+                } while (workerW != IntPtr.Zero);
+
+                return IntPtr.Zero;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"InputManager: Error finding desktop icon window - {ex.Message}");
+                return IntPtr.Zero;
             }
         }
 
