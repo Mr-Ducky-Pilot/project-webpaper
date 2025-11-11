@@ -243,14 +243,26 @@ namespace WebPaper
                 int currentStyle = Native.NativeMethods.GetWindowLong(_windowHandle, Native.NativeMethods.GWL_STYLE);
                 Log.Information($"Current window style: 0x{currentStyle:X8}");
 
-                // Remove: WS_CAPTION (title bar), WS_THICKFRAME (borders), WS_SYSMENU (system menu)
-                // Add: WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS
+                // CRITICAL: Must set WS_CHILD BEFORE calling SetParent
+                // Remove: WS_CAPTION, WS_THICKFRAME, WS_SYSMENU, WS_BORDER, WS_DLGFRAME
+                // Add: WS_CHILD, WS_VISIBLE, WS_CLIPCHILDREN, WS_CLIPSIBLINGS
                 int newStyle = currentStyle;
-                newStyle &= ~(int)(Native.NativeMethods.WS_CAPTION | Native.NativeMethods.WS_THICKFRAME | Native.NativeMethods.WS_SYSMENU);
-                newStyle |= (int)(Native.NativeMethods.WS_VISIBLE | Native.NativeMethods.WS_CLIPCHILDREN | Native.NativeMethods.WS_CLIPSIBLINGS);
+
+                // Remove all window frame/border styles
+                newStyle &= ~(int)(Native.NativeMethods.WS_CAPTION |
+                                  Native.NativeMethods.WS_THICKFRAME |
+                                  Native.NativeMethods.WS_SYSMENU |
+                                  Native.NativeMethods.WS_BORDER |
+                                  Native.NativeMethods.WS_DLGFRAME);
+
+                // Add child window style and clipping
+                newStyle |= (int)(Native.NativeMethods.WS_CHILD |
+                                 Native.NativeMethods.WS_VISIBLE |
+                                 Native.NativeMethods.WS_CLIPCHILDREN |
+                                 Native.NativeMethods.WS_CLIPSIBLINGS);
 
                 Native.NativeMethods.SetWindowLong(_windowHandle, Native.NativeMethods.GWL_STYLE, newStyle);
-                Log.Information($"New window style: 0x{newStyle:X8}");
+                Log.Information($"New window style (with WS_CHILD): 0x{newStyle:X8}");
 
                 // Set extended window style to prevent activation
                 int currentExStyle = Native.NativeMethods.GetWindowLong(_windowHandle, Native.NativeMethods.GWL_EXSTYLE);
@@ -290,12 +302,45 @@ namespace WebPaper
                 {
                     Log.Information("✓ Window successfully attached to WorkerW!");
                 }
+                else if (parent == IntPtr.Zero)
+                {
+                    Log.Error($"✗ CRITICAL: SetParent FAILED! Window parent is NULL (0x00000000)");
+                    Log.Error($"  Expected WorkerW: 0x{workerW:X8}");
+                    Log.Error($"  This means the window is not attached to desktop!");
+                    Log.Error($"  Attempting to re-attach with error checking...");
+
+                    // Try again with explicit error checking
+                    IntPtr result = Native.NativeMethods.SetParent(_windowHandle, workerW);
+                    if (result == IntPtr.Zero)
+                    {
+                        uint error = Native.NativeMethods.GetLastError();
+                        throw new InvalidOperationException($"SetParent failed with error code: {error}");
+                    }
+
+                    parent = Native.NativeMethods.GetParent(_windowHandle);
+                    Log.Information($"After retry, window parent: 0x{parent:X8}");
+                }
                 else
                 {
                     Log.Warning($"! Window parent mismatch. Expected: 0x{workerW:X8}, Got: 0x{parent:X8}");
                 }
 
-                Log.Information($"Step 5.6: Desktop attachment complete!");
+                // Ensure window is positioned and sized correctly to fill the desktop
+                Log.Information("Step 5.6: Positioning window to fill desktop...");
+                var displayArea = DisplayArea.Primary;
+                var workArea = displayArea.WorkArea;
+
+                Native.NativeMethods.SetWindowPos(
+                    _windowHandle,
+                    IntPtr.Zero,
+                    0, 0,
+                    workArea.Width, workArea.Height,
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW
+                );
+
+                Log.Information($"Window positioned at (0, 0) with size {workArea.Width}x{workArea.Height}");
+                Log.Information($"Step 5.7: Desktop attachment complete!");
             }
             catch (Exception ex)
             {
