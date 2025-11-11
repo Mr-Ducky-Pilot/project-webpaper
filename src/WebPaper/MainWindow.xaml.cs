@@ -92,6 +92,11 @@ namespace WebPaper
 
             try
             {
+                // CRITICAL: Defer initialization to allow window and controls to be fully loaded
+                // This prevents WebView2 deadlock issues
+                Log.Information("Waiting for window to be fully loaded...");
+                await Task.Delay(250); // Give UI thread time to complete window initialization
+
                 // Step 0: Load configuration
                 Log.Information("Step 0: Loading configuration...");
                 await LoadConfiguration();
@@ -179,8 +184,19 @@ namespace WebPaper
 
                 Log.Information("Step 3.4: WebView2 environment created successfully");
 
+                // CRITICAL FIX: Give WebView2 control time to be fully loaded in visual tree
+                // This prevents async deadlock on UI thread
+                Log.Information("Step 3.5a: Waiting for WebView2 control to be ready in visual tree...");
+                await Task.Delay(100); // Small delay to ensure control is loaded
+
+                // Force a UI update to ensure WebView2 is in the visual tree
+                Log.Information("Step 3.5b: Forcing UI dispatcher queue to process pending operations...");
+                var tcs = new TaskCompletionSource<bool>();
+                webView.DispatcherQueue.TryEnqueue(() => tcs.SetResult(true));
+                await tcs.Task;
+
                 // Initialize WebView2
-                Log.Information("Step 3.5: Ensuring CoreWebView2 (this may take a moment)...");
+                Log.Information("Step 3.5c: Ensuring CoreWebView2 (this may take a moment)...");
                 await webView.EnsureCoreWebView2Async(environment);
 
                 Log.Information("Step 3.6: CoreWebView2 initialized successfully");
