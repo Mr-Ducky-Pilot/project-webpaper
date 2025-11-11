@@ -378,25 +378,43 @@ namespace WebPaper.Core
                 // MODERN APPROACH (2024+ Best Practice):
                 // 1. Don't use AttachThreadInput (deprecated hack, can cause freezes)
                 // 2. SetForegroundWindow is enough for our scenario since WS_EX_NOACTIVATE is removed
-                // 3. Then SetFocus on the WebView2 child window
+                // 3. Find the ACTUAL input child window inside WebView2 and focus it
 
                 // Step 1: Bring our main window to the foreground
                 // Since we removed WS_EX_NOACTIVATE, this should now work properly
                 bool foregroundSet = SetForegroundWindow(_mainWindowHandle);
 
-                // Step 2: Set focus to the WebView2 child window
-                // This gives it keyboard focus after the parent window is foreground
-                IntPtr focusResult = SetFocus(_webViewHandle);
+                // Step 2: Get the REAL input child window inside WebView2
+                // WebView2's Chrome_RenderWidgetHostHWND has a child that accepts input
+                // This is the Microsoft-recommended approach for WebView2 focus issues
+                IntPtr inputChild = GetWindow(_webViewHandle, GetWindowType.GW_CHILD);
+                IntPtr focusTarget = inputChild != IntPtr.Zero ? inputChild : _webViewHandle;
+
+                // Step 3: Set focus to the actual input window
+                IntPtr focusResult = SetFocus(focusTarget);
 
                 // Debug logging (only on first click to avoid spam)
                 if (!_firstFocusLogged)
                 {
                     Console.WriteLine($"InputManager: AcquireWebViewFocus() - Modern Approach (2024)");
                     Console.WriteLine($"  SetForegroundWindow(_mainWindowHandle=0x{_mainWindowHandle:X8}) = {foregroundSet}");
-                    Console.WriteLine($"  SetFocus(_webViewHandle=0x{_webViewHandle:X8}) = 0x{focusResult:X8}");
+                    Console.WriteLine($"  WebView2 Handle: 0x{_webViewHandle:X8}");
+                    Console.WriteLine($"  Input Child Window: 0x{inputChild:X8}");
+                    Console.WriteLine($"  Focus Target: 0x{focusTarget:X8}");
+                    Console.WriteLine($"  SetFocus() = 0x{focusResult:X8}");
                     if (focusResult == IntPtr.Zero)
                     {
-                        Console.WriteLine($"  WARNING: SetFocus failed! Error: {GetLastError()}");
+                        uint error = GetLastError();
+                        Console.WriteLine($"  WARNING: SetFocus failed! Error: {error}");
+                        Console.WriteLine($"  Trying to focus WebView2 directly as fallback...");
+
+                        // Fallback: Try focusing the WebView2 handle directly
+                        IntPtr fallbackFocus = SetFocus(_webViewHandle);
+                        Console.WriteLine($"  Fallback SetFocus(_webViewHandle) = 0x{fallbackFocus:X8}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"  SUCCESS: WebView2 should now have focus!");
                     }
                     _firstFocusLogged = true;
                 }
