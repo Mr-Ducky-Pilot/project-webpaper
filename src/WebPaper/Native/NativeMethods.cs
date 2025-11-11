@@ -88,6 +88,13 @@ namespace WebPaper.Native
         public static extern IntPtr GetForegroundWindow();
 
         /// <summary>
+        /// Brings the thread that created the specified window into the foreground and activates the window.
+        /// </summary>
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        /// <summary>
         /// Retrieves a handle to a window that has the specified relationship to the specified window.
         /// </summary>
         [DllImport("user32.dll", SetLastError = true)]

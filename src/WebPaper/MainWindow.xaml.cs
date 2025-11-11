@@ -270,11 +270,14 @@ namespace WebPaper
                 Native.NativeMethods.SetWindowLong(_windowHandle, Native.NativeMethods.GWL_STYLE, newStyle);
                 Log.Information($"New window style (with WS_CHILD): 0x{newStyle:X8}");
 
-                // Set extended window style to prevent activation
+                // CRITICAL FIX: Do NOT set WS_EX_NOACTIVATE!
+                // That flag prevents the window from ever receiving focus, which breaks WebView2 input.
+                // We need the window to be able to receive focus for input to work.
                 int currentExStyle = Native.NativeMethods.GetWindowLong(_windowHandle, Native.NativeMethods.GWL_EXSTYLE);
-                int newExStyle = currentExStyle | (int)Native.NativeMethods.WS_EX_NOACTIVATE;
+                // Remove WS_EX_NOACTIVATE if it exists
+                int newExStyle = currentExStyle & ~(int)Native.NativeMethods.WS_EX_NOACTIVATE;
                 Native.NativeMethods.SetWindowLong(_windowHandle, Native.NativeMethods.GWL_EXSTYLE, newExStyle);
-                Log.Information($"Extended window style: 0x{newExStyle:X8}");
+                Log.Information($"Extended window style (WS_EX_NOACTIVATE removed): 0x{newExStyle:X8}");
 
                 // Force the window to update with new styles
                 Log.Information("Step 5.3: Applying window style changes...");
@@ -394,8 +397,8 @@ namespace WebPaper
                     Log.Information($"WebView2 Handle: 0x{webViewHandle:X8}");
                 }
 
-                // Install hooks
-                _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle);
+                // Install hooks (CRITICAL: Pass main window handle for focus control)
+                _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle, _windowHandle);
 
                 Log.Information("Input hooks installed successfully!");
                 Console.WriteLine(_inputManager.GetDiagnostics());

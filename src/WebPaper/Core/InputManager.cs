@@ -21,12 +21,17 @@ namespace WebPaper.Core
         private HookProc? _keyboardHookCallback;
         private CoreWebView2? _webView;
         private IntPtr _webViewHandle = IntPtr.Zero;
+        private IntPtr _mainWindowHandle = IntPtr.Zero; // ADDED: Store main window handle for focus control
         private bool _isEnabled = false;
         private bool _disposed = false;
 
         // Performance tracking
         private DateTime _lastEventTime = DateTime.Now;
         private int _eventCount = 0;
+
+        // Focus management
+        private DateTime _lastFocusAttempt = DateTime.MinValue;
+        private const int FOCUS_RETRY_INTERVAL_MS = 100; // Don't spam focus calls
 
         /// <summary>
         /// Gets or sets whether input forwarding is enabled
@@ -52,7 +57,7 @@ namespace WebPaper.Core
         /// <summary>
         /// Installs low-level mouse and keyboard hooks
         /// </summary>
-        public void InstallHooks(CoreWebView2 webView, IntPtr webViewHandle)
+        public void InstallHooks(CoreWebView2 webView, IntPtr webViewHandle, IntPtr mainWindowHandle)
         {
             if (HooksInstalled)
             {
@@ -62,6 +67,7 @@ namespace WebPaper.Core
 
             _webView = webView ?? throw new ArgumentNullException(nameof(webView));
             _webViewHandle = webViewHandle;
+            _mainWindowHandle = mainWindowHandle; // CRITICAL: We need the main window to control focus
 
             try
             {
@@ -306,13 +312,13 @@ namespace WebPaper.Core
                 // Send message to WebView's window handle
                 if (_webViewHandle != IntPtr.Zero)
                 {
-                    // CRITICAL FIX: WebView2 requires focus to process input!
-                    // Temporarily set focus on mouse down/up/wheel events
+                    // CRITICAL FIX: WebView2 requires TRUE FOCUS to process input!
+                    // On mouse down/up/wheel events, we must acquire real focus
                     if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN ||
                         msg == WM_LBUTTONUP || msg == WM_RBUTTONUP || msg == WM_MBUTTONUP ||
                         msg == WM_MOUSEWHEEL)
                     {
-                        SetFocus(_webViewHandle);
+                        AcquireWebViewFocus();
                     }
 
                     // CRITICAL: Convert screen coordinates to client coordinates
@@ -349,6 +355,55 @@ namespace WebPaper.Core
             catch (Exception ex)
             {
                 Console.WriteLine($"InputManager: Failed to forward mouse event - {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Acquires TRUE focus for the WebView2 control
+        /// Uses MODERN best practices (2024+) - NO AttachThreadInput hack!
+        /// </summary>
+        private void AcquireWebViewFocus()
+        {
+            try
+            {
+                // Throttle focus attempts to avoid spam (only every 100ms)
+                if ((DateTime.Now - _lastFocusAttempt).TotalMilliseconds < FOCUS_RETRY_INTERVAL_MS)
+                {
+                    return; // Too soon, skip this attempt
+                }
+
+                _lastFocusAttempt = DateTime.Now;
+
+                // MODERN APPROACH (2024+ Best Practice):
+                // 1. Don't use AttachThreadInput (deprecated hack, can cause freezes)
+                // 2. SetForegroundWindow is enough for our scenario since WS_EX_NOACTIVATE is removed
+                // 3. Then SetFocus on the WebView2 child window
+
+                // Step 1: Bring our main window to the foreground
+                // Since we removed WS_EX_NOACTIVATE, this should now work properly
+                bool foregroundSet = SetForegroundWindow(_mainWindowHandle);
+
+                // Step 2: Set focus to the WebView2 child window
+                // This gives it keyboard focus after the parent window is foreground
+                IntPtr focusResult = SetFocus(_webViewHandle);
+
+                // Debug logging (only on first click to avoid spam)
+                static bool firstFocus = true;
+                if (firstFocus)
+                {
+                    Console.WriteLine($"InputManager: AcquireWebViewFocus() - Modern Approach (2024)");
+                    Console.WriteLine($"  SetForegroundWindow(_mainWindowHandle=0x{_mainWindowHandle:X8}) = {foregroundSet}");
+                    Console.WriteLine($"  SetFocus(_webViewHandle=0x{_webViewHandle:X8}) = 0x{focusResult:X8}");
+                    if (focusResult == IntPtr.Zero)
+                    {
+                        Console.WriteLine($"  WARNING: SetFocus failed! Error: {GetLastError()}");
+                    }
+                    firstFocus = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"InputManager: AcquireWebViewFocus failed - {ex.Message}");
             }
         }
 
