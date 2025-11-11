@@ -349,6 +349,18 @@ namespace WebPaper
                     Log.Warning($"! Window parent mismatch. Expected: 0x{workerW:X8}, Got: 0x{parent:X8}");
                 }
 
+                // CRITICAL FIX: Set Z-order to bottom so desktop icons appear on top
+                Log.Information("Step 5.5.1: Setting Z-order to HWND_BOTTOM so icons are on top...");
+                bool zOrderResult = Native.NativeMethods.SetWindowPos(
+                    _windowHandle,
+                    Native.NativeMethods.HWND_BOTTOM, // Put wallpaper at bottom
+                    0, 0, 0, 0,
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOMOVE |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOSIZE |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
+                );
+                Log.Information($"Z-order set to HWND_BOTTOM: {zOrderResult}");
+
                 // Ensure window is positioned and sized correctly to fill PRIMARY desktop
                 Log.Information("Step 5.6: Positioning window to fill PRIMARY desktop...");
 
@@ -869,6 +881,14 @@ namespace WebPaper
 
         private void ShowError(string message)
         {
+            // CRITICAL FIX: Disable input forwarding when showing error dialog
+            // Input hooks interfere with WinUI button clicks
+            if (_inputManager != null)
+            {
+                _inputManager.IsEnabled = false;
+                Log.Information("Input forwarding disabled for error dialog");
+            }
+
             // Hide loading, show error
             LoadingPanel.Visibility = Visibility.Collapsed;
             ErrorPanel.Visibility = Visibility.Visible;
@@ -884,6 +904,13 @@ namespace WebPaper
                 Log.Information("Retry button clicked");
                 ErrorPanel.Visibility = Visibility.Collapsed;
                 LoadingPanel.Visibility = Visibility.Visible;
+
+                // Re-enable input forwarding after error dismissed
+                if (_inputManager != null)
+                {
+                    _inputManager.IsEnabled = true;
+                    Log.Information("Input forwarding re-enabled after retry");
+                }
 
                 // Reload the page
                 if (webView?.CoreWebView2 != null && _config != null)

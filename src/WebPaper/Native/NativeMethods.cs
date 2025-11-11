@@ -145,6 +145,12 @@ namespace WebPaper.Native
             int cy,
             SetWindowPosFlags uFlags);
 
+        // HWND values for SetWindowPos hWndInsertAfter parameter
+        public static readonly IntPtr HWND_TOP = new IntPtr(0);
+        public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+
         [Flags]
         public enum SetWindowPosFlags : uint
         {
