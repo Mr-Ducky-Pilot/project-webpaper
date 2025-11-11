@@ -372,7 +372,7 @@ namespace WebPaper.Core
 
                     // Build lParam: low-word = x, high-word = y
                     IntPtr lParam = MakeLParam(clientPt.X, clientPt.Y);
-                    IntPtr wParam = MakeMouseWParam(hookStruct);
+                    IntPtr mouseWParam = MakeMouseWParam(hookStruct);
 
                     // For clicks, log the action
                     if (msg == WM_LBUTTONDOWN)
@@ -382,7 +382,7 @@ namespace WebPaper.Core
                     }
 
                     // Forward the message using PostMessage (works because we're using the correct child window!)
-                    PostMessage(_inputHandle, msg, wParam, lParam);
+                    PostMessage(_inputHandle, msg, mouseWParam, lParam);
                 }
                 else
                 {
@@ -712,13 +712,13 @@ namespace WebPaper.Core
                     {
                         await _webView.ExecuteScriptAsync(script);
                     }
-                    catch (Exception ex)
+                    catch
                     {
                         // Silently fail for scrolls to avoid log spam
                     }
                 });
             }
-            catch (Exception ex)
+            catch
             {
                 // Silently fail for scrolls
             }
