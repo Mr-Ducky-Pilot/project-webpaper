@@ -544,8 +544,10 @@ namespace WebPaper.Native
         public const uint WM_MOUSEMOVE = 0x0200;
         public const uint WM_LBUTTONDOWN = 0x0201;
         public const uint WM_LBUTTONUP = 0x0202;
+        public const uint WM_LBUTTONDBLCLK = 0x0203;
         public const uint WM_RBUTTONDOWN = 0x0204;
         public const uint WM_RBUTTONUP = 0x0205;
+        public const uint WM_RBUTTONDBLCLK = 0x0206;
         public const uint WM_MBUTTONDOWN = 0x0207;
         public const uint WM_MBUTTONUP = 0x0208;
         public const uint WM_MOUSEWHEEL = 0x020A;
