@@ -30,12 +30,6 @@
                            Height="140"
                            Padding="24"
                            HorizontalAlignment="Center">
-                        <Border.Effect>
-                            <DropShadowEffect Color="#40000000"
-                                            BlurRadius="32"
-                                            ShadowDepth="0"
-                                            Opacity="0.4"/>
-                        </Border.Effect>
                         <Image Source="Assets/WebPaperLogo.png"
                               Stretch="Uniform"/>
                     </Border>
@@ -58,12 +52,6 @@
                 <Border Background="White"
                        CornerRadius="16"
                        Padding="32">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#60000000"
-                                        BlurRadius="48"
-                                        ShadowDepth="0"
-                                        Opacity="0.3"/>
-                    </Border.Effect>
 
                     <StackPanel Spacing="24">
 
