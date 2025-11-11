@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.UI.Dispatching;
 using WebPaper.Core;
 using WebPaper.Native;
 using static WebPaper.Native.NativeMethods;
@@ -16,6 +17,7 @@ namespace WebPaper.Services
     public class PerformanceManager : IDisposable
     {
         private CoreWebView2? _webView;
+        private DispatcherQueue? _dispatcherQueue; // CRITICAL: For marshaling WebView2 calls to UI thread
         private Timer? _monitoringTimer;
         private bool _isPaused = false;
         private bool _disposed = false;
@@ -46,9 +48,10 @@ namespace WebPaper.Services
         /// </summary>
         public event EventHandler? WallpaperResumed;
 
-        public void Initialize(CoreWebView2 webView)
+        public void Initialize(CoreWebView2 webView, DispatcherQueue dispatcherQueue)
         {
             _webView = webView ?? throw new ArgumentNullException(nameof(webView));
+            _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue));
 
             // Start monitoring
             _monitoringTimer = new Timer(
@@ -216,28 +219,54 @@ namespace WebPaper.Services
 
         /// <summary>
         /// Pauses rendering to save resources
+        /// THREADING: Uses DispatcherQueue to marshal ExecuteScriptAsync to UI thread
         /// </summary>
         private async Task PauseRenderingAsync(string reason)
         {
-            if (_webView == null || _isPaused)
+            if (_webView == null || _isPaused || _dispatcherQueue == null)
                 return;
 
             try
             {
-                // Pause media playback
-                await _webView.ExecuteScriptAsync(@"
-                    (function() {
-                        document.querySelectorAll('video').forEach(v => v.pause());
-                        document.querySelectorAll('audio').forEach(a => a.pause());
-                    })();
-                ");
+                // CRITICAL FIX: Marshal WebView2 call to UI thread
+                var tcs = new TaskCompletionSource<bool>();
 
-                _isPaused = true;
-                _pauseCount++;
-                _pausedAt = DateTime.Now;
+                bool enqueued = _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
+                {
+                    try
+                    {
+                        // Pause media playback
+                        await _webView.ExecuteScriptAsync(@"
+                            (function() {
+                                document.querySelectorAll('video').forEach(v => v.pause());
+                                document.querySelectorAll('audio').forEach(a => a.pause());
+                            })();
+                        ");
 
-                Console.WriteLine($"PerformanceManager: Paused rendering - {reason}");
-                WallpaperPaused?.Invoke(this, reason);
+                        _isPaused = true;
+                        _pauseCount++;
+                        _pausedAt = DateTime.Now;
+
+                        Console.WriteLine($"PerformanceManager: Paused rendering - {reason}");
+                        WallpaperPaused?.Invoke(this, reason);
+
+                        tcs.SetResult(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"PerformanceManager ERROR: Failed to pause - {ex.Message}");
+                        tcs.SetException(ex);
+                    }
+                });
+
+                if (!enqueued)
+                {
+                    Console.WriteLine($"PerformanceManager ERROR: Failed to enqueue pause operation to UI thread");
+                    return;
+                }
+
+                // Wait for the operation to complete
+                await tcs.Task;
             }
             catch (Exception ex)
             {

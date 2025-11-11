@@ -430,8 +430,8 @@ namespace WebPaper
                 _performanceManager.WallpaperPaused += OnWallpaperPaused;
                 _performanceManager.WallpaperResumed += OnWallpaperResumed;
 
-                // Initialize with WebView2
-                _performanceManager.Initialize(webView.CoreWebView2);
+                // Initialize with WebView2 and DispatcherQueue (for thread marshaling)
+                _performanceManager.Initialize(webView.CoreWebView2, _dispatcherQueue!);
 
                 Log.Information("Performance manager initialized successfully!");
             }

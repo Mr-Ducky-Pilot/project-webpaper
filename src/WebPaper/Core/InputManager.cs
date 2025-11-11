@@ -388,35 +388,103 @@ namespace WebPaper.Core
                     return;
                 }
 
-                // JavaScript to find element at coordinates and click it
+                // Enhanced JavaScript to handle overlays and dynamic content
                 string script = $@"
                     (function() {{
                         try {{
                             // Find the element at the click position
                             var element = document.elementFromPoint({x}, {y});
-                            if (element) {{
-                                console.log('WebPaper: Clicking element at ({x}, {y}):', element.tagName);
-
-                                // Dispatch a full click event (mousedown + mouseup + click)
-                                var clickEvent = new MouseEvent('click', {{
-                                    view: window,
-                                    bubbles: true,
-                                    cancelable: true,
-                                    clientX: {x},
-                                    clientY: {y}
-                                }});
-                                element.dispatchEvent(clickEvent);
-
-                                // Also try direct click() method (works better for links/buttons)
-                                if (element.click) {{
-                                    element.click();
-                                }}
-
-                                return 'SUCCESS: ' + element.tagName;
-                            }} else {{
+                            if (!element) {{
                                 console.log('WebPaper: No element found at ({x}, {y})');
                                 return 'ERROR: No element found';
                             }}
+
+                            console.log('WebPaper: Element at ({x}, {y}):', element.tagName, element.className, element.id);
+
+                            // Check if this is an overlay/blocking element that we should try to penetrate
+                            var originalElement = element;
+                            var isOverlay = element.className && (
+                                element.className.includes('overlay') ||
+                                element.className.includes('blur') ||
+                                element.className.includes('modal') ||
+                                element.className.includes('BLURRED')
+                            );
+
+                            // If it's an overlay, try to find clickable element underneath by hiding it temporarily
+                            if (isOverlay) {{
+                                console.log('WebPaper: Detected overlay, looking for element underneath...');
+                                element.style.pointerEvents = 'none'; // Temporarily disable
+                                var elementUnderneath = document.elementFromPoint({x}, {y});
+                                element.style.pointerEvents = ''; // Re-enable
+
+                                if (elementUnderneath && elementUnderneath !== element) {{
+                                    console.log('WebPaper: Found element underneath:', elementUnderneath.tagName, elementUnderneath.className);
+                                    element = elementUnderneath;
+                                }}
+                            }}
+
+                            // Look for the nearest interactive parent (a, button, input, etc.)
+                            var clickableElement = element;
+                            var maxDepth = 5;
+                            var depth = 0;
+
+                            while (clickableElement && depth < maxDepth) {{
+                                var tagName = clickableElement.tagName ? clickableElement.tagName.toUpperCase() : '';
+                                var role = clickableElement.getAttribute('role');
+                                var isClickable =
+                                    tagName === 'A' ||
+                                    tagName === 'BUTTON' ||
+                                    tagName === 'INPUT' ||
+                                    tagName === 'SELECT' ||
+                                    tagName === 'TEXTAREA' ||
+                                    role === 'button' ||
+                                    role === 'link' ||
+                                    clickableElement.onclick ||
+                                    clickableElement.hasAttribute('onclick');
+
+                                if (isClickable) {{
+                                    console.log('WebPaper: Found clickable parent:', tagName, clickableElement.className);
+                                    break;
+                                }}
+
+                                clickableElement = clickableElement.parentElement;
+                                depth++;
+                            }}
+
+                            // Use the clickable element if found, otherwise use original
+                            var targetElement = clickableElement || element;
+
+                            // Dispatch full event sequence (more realistic)
+                            var eventOptions = {{
+                                view: window,
+                                bubbles: true,
+                                cancelable: true,
+                                clientX: {x},
+                                clientY: {y}
+                            }};
+
+                            // 1. Mousedown
+                            var mousedownEvent = new MouseEvent('mousedown', eventOptions);
+                            targetElement.dispatchEvent(mousedownEvent);
+
+                            // 2. Mouseup
+                            var mouseupEvent = new MouseEvent('mouseup', eventOptions);
+                            targetElement.dispatchEvent(mouseupEvent);
+
+                            // 3. Click
+                            var clickEvent = new MouseEvent('click', eventOptions);
+                            targetElement.dispatchEvent(clickEvent);
+
+                            // 4. Also try direct click() method (works for native elements)
+                            if (typeof targetElement.click === 'function') {{
+                                targetElement.click();
+                            }}
+
+                            var resultTag = targetElement.tagName || 'UNKNOWN';
+                            var resultClass = targetElement.className || '';
+                            var wasOverlay = (originalElement !== targetElement) ? ' (penetrated overlay)' : '';
+
+                            return 'SUCCESS: ' + resultTag + ' ' + resultClass + wasOverlay;
                         }} catch (e) {{
                             console.error('WebPaper: Click simulation error:', e);
                             return 'ERROR: ' + e.message;
