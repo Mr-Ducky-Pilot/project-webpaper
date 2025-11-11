@@ -339,17 +339,19 @@ namespace WebPaper.Core
                         SimulateClickViaJavaScript(clientPt.X, clientPt.Y);
                     }
 
-                    // For scroll, try PostMessage (might work even without focus)
+                    // For scroll, use JavaScript simulation (PostMessage won't work without focus)
                     if (msg == WM_MOUSEWHEEL)
                     {
                         POINT clientPt = pt;
                         ScreenToClient(_webViewHandle, ref clientPt);
 
                         int wheelDelta = (short)((hookStruct.mouseData >> 16) & 0xFFFF);
-                        IntPtr wheelWParam = new IntPtr(wheelDelta << 16);
-                        IntPtr wheelLParam = MakeLParam(clientPt.X, clientPt.Y);
 
-                        PostMessage(_webViewHandle, WM_MOUSEWHEEL, wheelWParam, wheelLParam);
+                        // Positive delta = scroll up, negative = scroll down
+                        // Each delta unit is typically 120
+                        int scrollAmount = -wheelDelta; // Invert for natural scrolling direction
+
+                        SimulateScrollViaJavaScript(clientPt.X, clientPt.Y, scrollAmount);
                     }
                 }
                 else
@@ -388,52 +390,11 @@ namespace WebPaper.Core
                     return;
                 }
 
-                // ENHANCED JavaScript click simulation with aggressive overlay penetration
+                // SMART JavaScript click simulation using elementsFromPoint
                 string script = $@"
                     (function() {{
                         try {{
-                            // Helper: Check if element is likely a non-interactive overlay/background
-                            function isLikelyOverlay(el) {{
-                                if (!el) return false;
-
-                                var tag = el.tagName ? el.tagName.toUpperCase() : '';
-                                var className = el.className || '';
-                                var computed = window.getComputedStyle(el);
-
-                                // Skip BODY and HTML - never the intended target
-                                if (tag === 'BODY' || tag === 'HTML') return true;
-
-                                // Check for common overlay indicators in class name
-                                if (typeof className === 'string') {{
-                                    var overlayKeywords = ['overlay', 'blur', 'modal', 'backdrop',
-                                                          'mask', 'scrim', 'dimmer', 'cover',
-                                                          'min-h-screen', 'h-screen', 'h-full',
-                                                          'fullscreen', 'full-screen'];
-                                    for (var i = 0; i < overlayKeywords.length; i++) {{
-                                        if (className.toLowerCase().includes(overlayKeywords[i])) {{
-                                            return true;
-                                        }}
-                                    }}
-                                }}
-
-                                // Check if element covers most of the viewport (likely a background)
-                                var rect = el.getBoundingClientRect();
-                                var viewportArea = window.innerWidth * window.innerHeight;
-                                var elementArea = rect.width * rect.height;
-                                if (elementArea > viewportArea * 0.9) {{ // Covers >90% of screen
-                                    return true;
-                                }}
-
-                                // Check for fixed/absolute positioning that covers screen
-                                var position = computed.position;
-                                if ((position === 'fixed' || position === 'absolute') &&
-                                    rect.width > window.innerWidth * 0.8 &&
-                                    rect.height > window.innerHeight * 0.8) {{
-                                    return true;
-                                }}
-
-                                return false;
-                            }}
+                            console.log('WebPaper: Click at ({x}, {y})');
 
                             // Helper: Check if element is interactive/clickable
                             function isInteractive(el) {{
@@ -441,116 +402,145 @@ namespace WebPaper.Core
 
                                 var tag = el.tagName ? el.tagName.toUpperCase() : '';
                                 var role = el.getAttribute('role');
-                                var computed = window.getComputedStyle(el);
 
-                                // Check tag name
+                                // Skip BODY and HTML - never clickable
+                                if (tag === 'BODY' || tag === 'HTML') return false;
+
+                                // Check interactive tags
                                 if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'LABEL',
-                                     'SUMMARY', 'DETAILS'].includes(tag)) {{
+                                     'SUMMARY', 'DETAILS', 'VIDEO', 'AUDIO'].includes(tag)) {{
                                     return true;
                                 }}
 
-                                // Check ARIA role
+                                // Check ARIA roles
                                 if (role && ['button', 'link', 'checkbox', 'radio', 'tab',
-                                            'menuitem', 'option', 'switch'].includes(role)) {{
+                                            'menuitem', 'option', 'switch', 'slider'].includes(role)) {{
                                     return true;
                                 }}
 
-                                // Check for onclick or event listeners
+                                // Check for click handlers
                                 if (el.onclick || el.hasAttribute('onclick')) {{
                                     return true;
                                 }}
 
-                                // Check for cursor pointer (indicates clickable)
+                                // Check CSS cursor (strong indicator of clickability)
+                                var computed = window.getComputedStyle(el);
                                 if (computed.cursor === 'pointer') {{
                                     return true;
                                 }}
 
                                 // Check for common clickable data attributes
-                                var attrs = el.attributes;
-                                for (var i = 0; i < attrs.length; i++) {{
-                                    var name = attrs[i].name.toLowerCase();
-                                    if (name.startsWith('data-') &&
-                                        (name.includes('click') || name.includes('action') ||
-                                         name.includes('handler') || name.includes('toggle'))) {{
-                                        return true;
-                                    }}
+                                if (el.hasAttribute('data-action') ||
+                                    el.hasAttribute('data-click') ||
+                                    el.hasAttribute('data-toggle') ||
+                                    el.hasAttribute('data-handler')) {{
+                                    return true;
+                                }}
+
+                                // Check if element has child interactive elements
+                                // (but the element itself might be clickable container)
+                                if (el.querySelector('a, button, input, [role=""button""], [role=""link""]')) {{
+                                    // Has interactive children, but check if this element itself is a clickable container
+                                    var hasClickHandler = el.onclick || el.hasAttribute('onclick');
+                                    if (hasClickHandler) return true;
                                 }}
 
                                 return false;
                             }}
 
-                            // STEP 1: Iteratively find clickable element by penetrating overlays
-                            var element = null;
-                            var hiddenElements = [];
-                            var maxIterations = 10;
-                            var iterations = 0;
+                            // Helper: Get interactivity score (higher = more likely to be the intended target)
+                            function getInteractivityScore(el) {{
+                                var score = 0;
+                                var tag = el.tagName ? el.tagName.toUpperCase() : '';
+                                var role = el.getAttribute('role');
 
-                            console.log('WebPaper: Starting click simulation at ({x}, {y})');
+                                // High priority: actual interactive elements
+                                if (['BUTTON', 'A'].includes(tag)) score += 100;
+                                if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) score += 90;
+                                if (role === 'button' || role === 'link') score += 80;
 
-                            while (iterations < maxIterations) {{
-                                element = document.elementFromPoint({x}, {y});
+                                // Medium priority: clickable indicators
+                                if (el.onclick || el.hasAttribute('onclick')) score += 50;
+                                var computed = window.getComputedStyle(el);
+                                if (computed.cursor === 'pointer') score += 40;
 
-                                if (!element) {{
-                                    console.log('WebPaper: No element found at iteration ' + iterations);
-                                    break;
-                                }}
+                                // Low priority: data attributes
+                                if (el.hasAttribute('data-action')) score += 30;
 
-                                console.log('WebPaper: Iteration ' + iterations + ': Found', element.tagName, element.className);
+                                // Penalty for generic containers
+                                if (['DIV', 'SPAN', 'SECTION'].includes(tag)) score -= 10;
 
-                                // Check if this element is interactive
-                                if (isInteractive(element)) {{
-                                    console.log('WebPaper: Found interactive element!');
-                                    break;
-                                }}
+                                // Bonus for smaller elements (more specific target)
+                                var rect = el.getBoundingClientRect();
+                                var area = rect.width * rect.height;
+                                var viewportArea = window.innerWidth * window.innerHeight;
+                                if (area < viewportArea * 0.01) score += 20; // < 1% of screen
+                                else if (area > viewportArea * 0.5) score -= 20; // > 50% of screen
 
-                                // Check if this is an overlay we should penetrate
-                                if (isLikelyOverlay(element)) {{
-                                    console.log('WebPaper: Detected overlay, hiding to look underneath...');
-                                    element.style.pointerEvents = 'none';
-                                    hiddenElements.push(element);
-                                    iterations++;
-                                    continue;
-                                }}
-
-                                // Not an overlay and not interactive - use it anyway
-                                break;
+                                return score;
                             }}
 
-                            // Restore all hidden elements
-                            for (var i = 0; i < hiddenElements.length; i++) {{
-                                hiddenElements[i].style.pointerEvents = '';
-                            }}
+                            // STEP 1: Get ALL elements at this point (from top to bottom)
+                            var allElements = document.elementsFromPoint({x}, {y});
 
-                            if (!element) {{
-                                console.log('WebPaper: No element found after ' + iterations + ' iterations');
+                            if (!allElements || allElements.length === 0) {{
+                                console.log('WebPaper: No elements found at point');
                                 return 'ERROR: No element found';
                             }}
 
-                            console.log('WebPaper: Final element:', element.tagName, element.className, element.id);
+                            console.log('WebPaper: Found ' + allElements.length + ' elements at point');
 
-                            // STEP 2: If element is not directly clickable, search up for clickable parent
-                            var targetElement = element;
+                            // STEP 2: Find the best interactive element
+                            var candidates = [];
 
-                            if (!isInteractive(element)) {{
-                                console.log('WebPaper: Element not interactive, searching for clickable parent...');
-                                var parent = element.parentElement;
-                                var parentDepth = 0;
-                                var maxParentDepth = 5;
-
-                                while (parent && parentDepth < maxParentDepth) {{
-                                    if (isInteractive(parent)) {{
-                                        console.log('WebPaper: Found clickable parent:', parent.tagName, parent.className);
-                                        targetElement = parent;
-                                        break;
-                                    }}
-                                    parent = parent.parentElement;
-                                    parentDepth++;
+                            for (var i = 0; i < allElements.length; i++) {{
+                                var el = allElements[i];
+                                if (isInteractive(el)) {{
+                                    var score = getInteractivityScore(el);
+                                    candidates.push({{ element: el, score: score, index: i }});
+                                    console.log('WebPaper: Candidate ' + i + ':', el.tagName,
+                                               el.className, 'score=' + score);
                                 }}
                             }}
 
-                            // STEP 3: Dispatch click events
-                            console.log('WebPaper: Clicking element:', targetElement.tagName, targetElement.className);
+                            // STEP 3: Pick the best candidate
+                            var target = null;
 
+                            if (candidates.length === 0) {{
+                                // No interactive elements found - try to find clickable parent
+                                console.log('WebPaper: No interactive elements, checking parents...');
+                                var topElement = allElements[0];
+                                var parent = topElement.parentElement;
+                                var depth = 0;
+
+                                while (parent && depth < 5) {{
+                                    if (isInteractive(parent)) {{
+                                        target = parent;
+                                        console.log('WebPaper: Found clickable parent:', parent.tagName);
+                                        break;
+                                    }}
+                                    parent = parent.parentElement;
+                                    depth++;
+                                }}
+
+                                // Still nothing? Click the topmost element anyway
+                                if (!target) {{
+                                    target = allElements[0];
+                                    console.log('WebPaper: No clickable element, using topmost:', target.tagName);
+                                }}
+                            }} else {{
+                                // Sort by score (highest first), then by index (topmost first)
+                                candidates.sort(function(a, b) {{
+                                    if (b.score !== a.score) return b.score - a.score;
+                                    return a.index - b.index;
+                                }});
+
+                                target = candidates[0].element;
+                                console.log('WebPaper: Selected best candidate:', target.tagName,
+                                           target.className, 'score=' + candidates[0].score);
+                            }}
+
+                            // STEP 4: Dispatch click events
                             var eventOptions = {{
                                 view: window,
                                 bubbles: true,
@@ -560,32 +550,30 @@ namespace WebPaper.Core
                                 button: 0
                             }};
 
-                            // Full click sequence
-                            targetElement.dispatchEvent(new MouseEvent('mousedown', eventOptions));
-                            targetElement.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-                            targetElement.dispatchEvent(new MouseEvent('click', eventOptions));
+                            target.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                            target.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                            target.dispatchEvent(new MouseEvent('click', eventOptions));
 
-                            // Also try native click() method
-                            if (typeof targetElement.click === 'function') {{
+                            // Also try native click() for form elements
+                            if (typeof target.click === 'function') {{
                                 try {{
-                                    targetElement.click();
+                                    target.click();
                                 }} catch (e) {{
-                                    console.log('WebPaper: Native click() failed:', e.message);
+                                    console.log('WebPaper: Native click failed:', e.message);
                                 }}
                             }}
 
-                            // Build result message
-                            var resultTag = targetElement.tagName || 'UNKNOWN';
-                            var resultClass = (targetElement.className || '').toString().substring(0, 50);
-                            var penetratedLayers = hiddenElements.length;
-                            var resultMsg = 'SUCCESS: ' + resultTag;
-                            if (resultClass) resultMsg += ' (' + resultClass + ')';
-                            if (penetratedLayers > 0) resultMsg += ' [penetrated ' + penetratedLayers + ' layers]';
+                            // Build result
+                            var resultTag = target.tagName || 'UNKNOWN';
+                            var resultClass = (target.className || '').toString().substring(0, 40);
+                            var candidateCount = candidates.length;
 
-                            return resultMsg;
+                            return 'SUCCESS: ' + resultTag +
+                                   (resultClass ? ' (' + resultClass + ')' : '') +
+                                   ' [' + candidateCount + ' candidates, ' + allElements.length + ' total]';
 
                         }} catch (e) {{
-                            console.error('WebPaper: Click simulation error:', e);
+                            console.error('WebPaper: Click error:', e);
                             return 'ERROR: ' + e.message;
                         }}
                     }})();
@@ -623,6 +611,86 @@ namespace WebPaper.Core
             catch (Exception ex)
             {
                 Console.WriteLine($"InputManager: SimulateClickViaJavaScript failed - {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Simulates mouse wheel scroll by executing JavaScript directly on the webpage
+        /// This bypasses Windows focus requirements like click simulation
+        /// </summary>
+        private void SimulateScrollViaJavaScript(int x, int y, int scrollAmount)
+        {
+            try
+            {
+                if (_webView == null || _dispatcherQueue == null)
+                {
+                    return;
+                }
+
+                // Normalize scroll amount (typically comes in multiples of 120)
+                // Convert to pixels for smoother scrolling
+                int scrollPixels = scrollAmount / 120 * 100; // 100 pixels per scroll unit
+
+                string script = $@"
+                    (function() {{
+                        try {{
+                            // Find the scrollable element at this position
+                            var element = document.elementFromPoint({x}, {y});
+                            if (!element) return 'ERROR: No element';
+
+                            // Find the nearest scrollable parent
+                            var scrollableElement = element;
+                            var depth = 0;
+
+                            while (scrollableElement && depth < 10) {{
+                                var computed = window.getComputedStyle(scrollableElement);
+                                var overflowY = computed.overflowY;
+                                var overflowX = computed.overflowX;
+
+                                // Check if this element is scrollable
+                                var isScrollable = (overflowY === 'auto' || overflowY === 'scroll' ||
+                                                   overflowX === 'auto' || overflowX === 'scroll') &&
+                                                  (scrollableElement.scrollHeight > scrollableElement.clientHeight ||
+                                                   scrollableElement.scrollWidth > scrollableElement.clientWidth);
+
+                                if (isScrollable) {{
+                                    break;
+                                }}
+
+                                scrollableElement = scrollableElement.parentElement;
+                                depth++;
+                            }}
+
+                            // Default to window if no scrollable element found
+                            if (!scrollableElement || scrollableElement.tagName === 'HTML' || scrollableElement.tagName === 'BODY') {{
+                                window.scrollBy(0, {scrollPixels});
+                                return 'SUCCESS: Scrolled window ' + {scrollPixels} + 'px';
+                            }} else {{
+                                scrollableElement.scrollTop += {scrollPixels};
+                                return 'SUCCESS: Scrolled ' + scrollableElement.tagName + ' ' + {scrollPixels} + 'px';
+                            }}
+                        }} catch (e) {{
+                            return 'ERROR: ' + e.message;
+                        }}
+                    }})();
+                ";
+
+                // Execute on UI thread (no console logging for scrolls to avoid spam)
+                _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
+                {
+                    try
+                    {
+                        await _webView.ExecuteScriptAsync(script);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Silently fail for scrolls to avoid log spam
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                // Silently fail for scrolls
             }
         }
 
