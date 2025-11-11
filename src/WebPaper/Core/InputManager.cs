@@ -306,6 +306,15 @@ namespace WebPaper.Core
                 // Send message to WebView's window handle
                 if (_webViewHandle != IntPtr.Zero)
                 {
+                    // CRITICAL FIX: WebView2 requires focus to process input!
+                    // Temporarily set focus on mouse down/up/wheel events
+                    if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN ||
+                        msg == WM_LBUTTONUP || msg == WM_RBUTTONUP || msg == WM_MBUTTONUP ||
+                        msg == WM_MOUSEWHEEL)
+                    {
+                        SetFocus(_webViewHandle);
+                    }
+
                     // CRITICAL: Convert screen coordinates to client coordinates
                     // The WebView expects coordinates relative to its window origin
                     POINT clientPt = pt;
