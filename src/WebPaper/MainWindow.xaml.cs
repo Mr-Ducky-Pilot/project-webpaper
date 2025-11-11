@@ -93,33 +93,52 @@ namespace WebPaper
             try
             {
                 // Step 0: Load configuration
+                Log.Information("Step 0: Loading configuration...");
                 await LoadConfiguration();
+                Log.Information("Step 0: Configuration loaded");
 
                 // Step 1: Initialize system tray
+                Log.Information("Step 1: Initializing system tray...");
                 InitializeTrayIcon();
+                Log.Information("Step 1: System tray initialized");
 
                 // Step 2: Initialize CookieManager
+                Log.Information("Step 2: Initializing CookieManager...");
                 _cookieManager = new Services.CookieManager();
+                Log.Information("Step 2: CookieManager initialized");
 
                 // Step 3: Initialize WebView2
+                Log.Information("Step 3: Initializing WebView2...");
                 await InitializeWebView2();
+                Log.Information("Step 3: WebView2 initialized");
 
                 // Step 4: Restore saved cookies (if any)
+                Log.Information("Step 4: Restoring saved cookies...");
                 await RestoreSavedCookies();
+                Log.Information("Step 4: Cookies restored");
 
                 // Step 5: Attach to desktop using WorkerW
+                Log.Information("Step 5: Attaching to desktop...");
                 AttachToDesktop();
+                Log.Information("Step 5: Attached to desktop");
 
                 // Step 6: Install input hooks for interactivity
+                Log.Information("Step 6: Installing input hooks...");
                 await InstallInputHooks();
+                Log.Information("Step 6: Input hooks installed");
 
                 // Step 7: Initialize performance monitoring
+                Log.Information("Step 7: Initializing performance manager...");
                 InitializePerformanceManager();
+                Log.Information("Step 7: Performance manager initialized");
 
                 // Step 8: Check if first run and show welcome
+                Log.Information("Step 8: Checking first run...");
                 await CheckFirstRun();
+                Log.Information("Step 8: First run check complete");
 
                 // Hide loading panel
+                Log.Information("Step 9: Hiding loading panel...");
                 LoadingPanel.Visibility = Visibility.Collapsed;
 
                 Log.Information("=== WebPaper Initialization Complete ===");
@@ -130,6 +149,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "FATAL: Initialization failed");
                 ShowError($"Initialization failed: {ex.Message}");
             }
         }
@@ -138,6 +158,8 @@ namespace WebPaper
         {
             try
             {
+                Log.Information("Step 3.1: Initializing WebView2...");
+
                 // Set up WebView2 environment with custom user data folder
                 var userDataFolder = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -145,17 +167,26 @@ namespace WebPaper
                     "WebView2Data"
                 );
 
+                Log.Information($"Step 3.2: WebView2 user data folder: {userDataFolder}");
+
                 // Create environment
+                Log.Information("Step 3.3: Creating WebView2 environment...");
                 var environment = await CoreWebView2Environment.CreateWithOptionsAsync(
                     null,           // browserExecutableFolder (null = use installed runtime)
                     userDataFolder, // userDataFolder
                     null            // options (null = use defaults)
                 );
 
+                Log.Information("Step 3.4: WebView2 environment created successfully");
+
                 // Initialize WebView2
+                Log.Information("Step 3.5: Ensuring CoreWebView2 (this may take a moment)...");
                 await webView.EnsureCoreWebView2Async(environment);
 
+                Log.Information("Step 3.6: CoreWebView2 initialized successfully");
+
                 // Configure WebView2 settings
+                Log.Information("Step 3.7: Configuring WebView2 settings...");
                 webView.CoreWebView2.Settings.AreDevToolsEnabled = true; // Enable for debugging
                 webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
@@ -163,16 +194,20 @@ namespace WebPaper
                 webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
 
                 // Subscribe to navigation events
+                Log.Information("Step 3.8: Subscribing to navigation events...");
                 webView.CoreWebView2.NavigationCompleted += WebView_NavigationCompleted;
                 webView.CoreWebView2.NavigationStarting += WebView_NavigationStarting;
 
                 // Navigate to configured URL
                 var url = _config?.WallpaperUrl ?? "https://blink42.com";
-                Log.Information($"Navigating to: {url}");
+                Log.Information($"Step 3.9: Navigating to: {url}");
                 webView.CoreWebView2.Navigate(url);
+
+                Log.Information("Step 3.10: WebView2 initialization complete");
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "ERROR in WebView2 initialization");
                 throw new InvalidOperationException("Failed to initialize WebView2. Make sure WebView2 Runtime is installed.", ex);
             }
         }
