@@ -581,27 +581,45 @@ namespace WebPaper
                 if (_configManager == null || _cookieManager == null)
                     return;
 
-                // Create and show settings window
-                var settingsWindow = new SettingsWindow(_configManager, _cookieManager);
-                settingsWindow.Activate();
-
-                // If settings were saved, reload configuration
-                settingsWindow.Closed += async (s, e) =>
+                // CRITICAL FIX: System tray events fire on Windows Forms thread
+                // WinUI 3 windows must be created on UI thread - dispatch to DispatcherQueue
+                DispatcherQueue.TryEnqueue(() =>
                 {
-                    if (settingsWindow.SettingsSaved)
+                    try
                     {
-                        await LoadConfiguration();
-                        // Reload the page with new URL
-                        if (webView.CoreWebView2 != null && _config != null)
+                        // Create and show settings window on UI thread
+                        var settingsWindow = new SettingsWindow(_configManager, _cookieManager);
+                        settingsWindow.Activate();
+
+                        // If settings were saved, reload configuration
+                        settingsWindow.Closed += async (s, e) =>
                         {
-                            webView.CoreWebView2.Navigate(_config.WallpaperUrl);
-                        }
+                            if (settingsWindow.SettingsSaved)
+                            {
+                                await LoadConfiguration();
+                                // Reload the page with new URL
+                                if (webView.CoreWebView2 != null && _config != null)
+                                {
+                                    webView.CoreWebView2.Navigate(_config.WallpaperUrl);
+                                }
+                            }
+                        };
+
+                        Log.Information("Settings window opened successfully");
                     }
-                };
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Error creating settings window on UI thread");
+                        _trayIconManager?.ShowNotification(
+                            "Error",
+                            $"Failed to open settings: {ex.Message}",
+                            System.Windows.Forms.ToolTipIcon.Error);
+                    }
+                });
             }
             catch (Exception ex)
             {
-                Log.Information($"Error showing settings: {ex.Message}");
+                Log.Error(ex, "Error dispatching settings window creation");
             }
         }
 
@@ -609,12 +627,29 @@ namespace WebPaper
         {
             try
             {
-                var aboutWindow = new AboutWindow();
-                aboutWindow.Activate();
+                // CRITICAL FIX: System tray events fire on Windows Forms thread
+                // WinUI 3 windows must be created on UI thread - dispatch to DispatcherQueue
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        var aboutWindow = new AboutWindow();
+                        aboutWindow.Activate();
+                        Log.Information("About window opened successfully");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Error creating about window on UI thread");
+                        _trayIconManager?.ShowNotification(
+                            "Error",
+                            $"Failed to open about window: {ex.Message}",
+                            System.Windows.Forms.ToolTipIcon.Error);
+                    }
+                });
             }
             catch (Exception ex)
             {
-                Log.Information($"Error showing about: {ex.Message}");
+                Log.Error(ex, "Error dispatching about window creation");
             }
         }
 
@@ -666,11 +701,45 @@ namespace WebPaper
                 if (_config != null && !string.IsNullOrWhiteSpace(_config.WallpaperUrl))
                 {
                     Log.Information($"Navigating to home page: {_config.WallpaperUrl}");
-                    webView.CoreWebView2?.Navigate(_config.WallpaperUrl);
-                    _trayIconManager?.ShowNotification(
-                        "Home Page",
-                        $"Navigating to {_config.WallpaperUrl}",
-                        System.Windows.Forms.ToolTipIcon.Info);
+
+                    // CRITICAL FIX: Properly handle UI state like RetryButton_Click
+                    // This ensures error panels are hidden and loading is shown
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        try
+                        {
+                            // Hide error panel if visible
+                            if (ErrorPanel.Visibility == Visibility.Visible)
+                            {
+                                ErrorPanel.Visibility = Visibility.Collapsed;
+                                Log.Information("Error panel hidden before navigation");
+                            }
+
+                            // Show loading panel
+                            LoadingPanel.Visibility = Visibility.Visible;
+
+                            // Re-enable input forwarding if it was disabled
+                            if (_inputManager != null && !_inputManager.IsEnabled)
+                            {
+                                _inputManager.IsEnabled = true;
+                                Log.Information("Input forwarding re-enabled before navigation");
+                            }
+
+                            // Navigate to home page
+                            if (webView?.CoreWebView2 != null)
+                            {
+                                webView.CoreWebView2.Navigate(_config.WallpaperUrl);
+                                _trayIconManager?.ShowNotification(
+                                    "Home Page",
+                                    $"Navigating to {_config.WallpaperUrl}",
+                                    System.Windows.Forms.ToolTipIcon.Info);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Error during home page navigation on UI thread");
+                        }
+                    });
                 }
                 else
                 {
@@ -696,7 +765,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Log.Information($"Error exiting: {ex.Message}");
+                Log.Error(ex, "Error during application exit");
             }
         }
 
@@ -795,7 +864,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Log.Information($"CookieManager ERROR: Failed to restore cookies - {ex.Message}");
+                Log.Error(ex, "CookieManager: Failed to restore cookies");
                 // Don't throw - continue without cookies
             }
         }
@@ -813,7 +882,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Log.Information($"CookieManager ERROR: Failed to save cookies - {ex.Message}");
+                Log.Error(ex, "CookieManager: Failed to save cookies");
             }
         }
 
@@ -863,13 +932,15 @@ namespace WebPaper
             {
                 Log.Information($"Navigation completed successfully");
 
+                // CRITICAL FIX: Always hide loading panel after successful navigation
+                LoadingPanel.Visibility = Visibility.Collapsed;
+
                 // CRITICAL FIX: Hide error panel and re-enable input if error was showing
                 // This handles the case where user navigates away from error (e.g., "Go to Home Page")
                 if (ErrorPanel.Visibility == Visibility.Visible)
                 {
                     Log.Information("Hiding error panel after successful navigation");
                     ErrorPanel.Visibility = Visibility.Collapsed;
-                    LoadingPanel.Visibility = Visibility.Collapsed;
 
                     // Re-enable input forwarding
                     if (_inputManager != null)
@@ -964,7 +1035,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Log.Information($"Error saving cookies: {ex.Message}");
+                Log.Error(ex, "Error saving cookies");
             }
 
             // Cleanup system tray
@@ -977,7 +1048,7 @@ namespace WebPaper
                 }
                 catch (Exception ex)
                 {
-                    Log.Information($"Error disposing TrayIconManager: {ex.Message}");
+                    Log.Error(ex, "Error disposing TrayIconManager");
                 }
             }
 
@@ -991,7 +1062,7 @@ namespace WebPaper
                 }
                 catch (Exception ex)
                 {
-                    Log.Information($"Error disposing PerformanceManager: {ex.Message}");
+                    Log.Error(ex, "Error disposing PerformanceManager");
                 }
             }
 
@@ -1005,7 +1076,7 @@ namespace WebPaper
                 }
                 catch (Exception ex)
                 {
-                    Log.Information($"Error disposing InputManager: {ex.Message}");
+                    Log.Error(ex, "Error disposing InputManager");
                 }
             }
 
@@ -1019,7 +1090,7 @@ namespace WebPaper
                 }
                 catch (Exception ex)
                 {
-                    Log.Information($"Error detaching from desktop: {ex.Message}");
+                    Log.Error(ex, "Error detaching from desktop");
                 }
             }
 
@@ -1031,7 +1102,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Log.Information($"Error closing WebView2: {ex.Message}");
+                Log.Error(ex, "Error closing WebView2");
             }
 
             Log.Information("WebPaper shutdown complete");
@@ -1063,7 +1134,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Log.Information($"Error reloading: {ex.Message}");
+                Log.Error(ex, "Error during page reload");
             }
         }
 
