@@ -862,6 +862,22 @@ namespace WebPaper
             if (args.IsSuccess)
             {
                 Log.Information($"Navigation completed successfully");
+
+                // CRITICAL FIX: Hide error panel and re-enable input if error was showing
+                // This handles the case where user navigates away from error (e.g., "Go to Home Page")
+                if (ErrorPanel.Visibility == Visibility.Visible)
+                {
+                    Log.Information("Hiding error panel after successful navigation");
+                    ErrorPanel.Visibility = Visibility.Collapsed;
+                    LoadingPanel.Visibility = Visibility.Collapsed;
+
+                    // Re-enable input forwarding
+                    if (_inputManager != null)
+                    {
+                        _inputManager.IsEnabled = true;
+                        Log.Information("Input forwarding re-enabled after successful navigation");
+                    }
+                }
             }
             else
             {

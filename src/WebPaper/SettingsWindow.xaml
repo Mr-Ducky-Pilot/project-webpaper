@@ -116,8 +116,6 @@
 
                             <Slider x:Name="BatterySlider"
                                    Grid.Column="0"
-                                   Minimum="10"
-                                   Maximum="50"
                                    Value="20"
                                    StepFrequency="5"
                                    TickFrequency="10"

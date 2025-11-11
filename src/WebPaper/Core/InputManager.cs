@@ -218,17 +218,24 @@ namespace WebPaper.Core
                         Console.WriteLine($"InputManager: {GetMouseEventName(msg)} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
                             $"OnWallpaper: {isOverWallpaper}, IconWindow: 0x{_desktopIconWindow:X8}");
 
+                        // CRITICAL FIX: Forward to BOTH icons and wallpaper
+                        // Strategy: Desktop icons window (SysListView32) will consume the click if there's an icon
+                        // at this position. If no icon, it ignores the message.
+                        // Then our wallpaper handles the click for webpage interaction.
+                        // This works because SysListView32 uses hit-testing internally.
+
+                        bool forwardedToIcons = false;
+                        if (_desktopIconWindow != IntPtr.Zero)
+                        {
+                            ForwardToDesktopIcons(_desktopIconWindow, msg, hookStruct);
+                            forwardedToIcons = true;
+                        }
+
+                        // Forward to wallpaper for webpage interaction
+                        // Note: This creates a potential double-click issue, but we prioritize icons
                         if (isOverWallpaper)
                         {
-                            // Forward to WebView2 wallpaper
                             ForwardMouseEvent(wParam, hookStruct);
-                        }
-                        else if (_desktopIconWindow != IntPtr.Zero)
-                        {
-                            // CRITICAL FIX: Forward clicks to desktop icons!
-                            // Our wallpaper blocks WindowFromPoint(), so we use the cached handle
-                            // SysListView32 will handle the click if it's over an icon, ignore it otherwise
-                            ForwardToDesktopIcons(_desktopIconWindow, msg, hookStruct);
                         }
                     }
                     else if (msg == WM_MOUSEWHEEL)

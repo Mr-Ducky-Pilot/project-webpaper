@@ -27,6 +27,11 @@ namespace WebPaper
             _cookieManager = cookieManager;
             _config = _configManager.GetCurrentConfig() ?? AppConfig.CreateDefault();
 
+            // CRITICAL FIX: Set Slider range in code to avoid WinUI 3 XAML parsing issues
+            // Setting Minimum/Maximum in XAML causes "Failed to assign to property RangeBase.Minimum" error
+            BatterySlider.Minimum = 10;
+            BatterySlider.Maximum = 50;
+
             // Set window size
             SetWindowSize(600, 700);
 
