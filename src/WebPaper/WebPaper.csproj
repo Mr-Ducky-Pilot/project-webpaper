@@ -15,13 +15,19 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseRidGraph>true</UseRidGraph>
 
+    <!-- Application icon -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+
     <!-- Enable unpackaged deployment with Windows App SDK self-contained -->
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Assets\**" />
+    <!-- Copy assets to output directory -->
+    <Content Include="Assets\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

@@ -18,6 +18,7 @@ namespace WebPaper.Services
         public event EventHandler? ShowAboutRequested;
         public event EventHandler? ExitRequested;
         public event EventHandler? ToggleWallpaperRequested;
+        public event EventHandler? GoToHomePageRequested;
 
         public void Initialize()
         {
@@ -46,6 +47,11 @@ namespace WebPaper.Services
                     toggleItem.Text = toggleItem.Checked ? "Disable Wallpaper" : "Enable Wallpaper";
                 };
                 contextMenu.Items.Add(toggleItem);
+
+                // Go to Home Page
+                var homePageItem = new ToolStripMenuItem("🏠 Go to Home Page");
+                homePageItem.Click += (s, e) => GoToHomePageRequested?.Invoke(this, EventArgs.Empty);
+                contextMenu.Items.Add(homePageItem);
 
                 contextMenu.Items.Add(new ToolStripSeparator());
 
@@ -136,20 +142,12 @@ namespace WebPaper.Services
             {
                 // Try to load from Assets folder (relative to executable)
                 var appDir = AppDomain.CurrentDomain.BaseDirectory;
-                var iconPath = Path.Combine(appDir, "Assets", "Square44x44Logo.png");
+                var iconPath = Path.Combine(appDir, "Assets", "app.ico");
 
                 if (File.Exists(iconPath))
                 {
-                    // Load PNG and convert to icon
-                    using (var bitmap = new Bitmap(iconPath))
-                    {
-                        // Resize to 16x16 for tray icon
-                        using (var resized = new Bitmap(bitmap, new Size(16, 16)))
-                        {
-                            var handle = resized.GetHicon();
-                            return Icon.FromHandle(handle);
-                        }
-                    }
+                    // Load .ico file directly (supports multiple sizes)
+                    return new Icon(iconPath, new Size(16, 16));
                 }
                 else
                 {
