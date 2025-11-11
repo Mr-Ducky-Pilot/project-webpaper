@@ -332,8 +332,8 @@ namespace WebPaper.Core
                         Console.WriteLine($"InputManager: LCLICK at screen({pt.X},{pt.Y}) -> client({clientPt.X},{clientPt.Y})");
                         Console.WriteLine($"  Using JavaScript simulation (bypasses Windows focus)");
 
-                        // Simulate click via JavaScript (fire and forget - async)
-                        _ = SimulateClickViaJavaScript(clientPt.X, clientPt.Y);
+                        // Simulate click via JavaScript (fire and forget)
+                        SimulateClickViaJavaScript(clientPt.X, clientPt.Y);
                     }
 
                     // For scroll, try PostMessage (might work even without focus)
@@ -343,10 +343,10 @@ namespace WebPaper.Core
                         ScreenToClient(_webViewHandle, ref clientPt);
 
                         int wheelDelta = (short)((hookStruct.mouseData >> 16) & 0xFFFF);
-                        IntPtr wParam = new IntPtr(wheelDelta << 16);
-                        IntPtr lParam = MakeLParam(clientPt.X, clientPt.Y);
+                        IntPtr wheelWParam = new IntPtr(wheelDelta << 16);
+                        IntPtr wheelLParam = MakeLParam(clientPt.X, clientPt.Y);
 
-                        PostMessage(_webViewHandle, WM_MOUSEWHEEL, wParam, lParam);
+                        PostMessage(_webViewHandle, WM_MOUSEWHEEL, wheelWParam, wheelLParam);
                     }
                 }
                 else
@@ -366,7 +366,7 @@ namespace WebPaper.Core
         /// This bypasses all Windows focus requirements - GUARANTEED to work!
         /// Latency: ~50-200ms (acceptable for wallpaper use case)
         /// </summary>
-        private async Task SimulateClickViaJavaScript(int x, int y)
+        private void SimulateClickViaJavaScript(int x, int y)
         {
             try
             {
@@ -410,7 +410,8 @@ namespace WebPaper.Core
                 ";
 
                 // Execute asynchronously (fire and forget to avoid blocking hook)
-                _ = _webView.ExecuteScriptAsync(script);
+                // Use Task.Run to avoid blocking the hook callback
+                _ = Task.Run(async () => await _webView.ExecuteScriptAsync(script));
             }
             catch (Exception ex)
             {
