@@ -45,7 +45,7 @@
                               TextWrapping="Wrap"/>
 
                     <TextBox x:Name="UrlTextBox"
-                            PlaceholderText="https://www.example.com"
+                            PlaceholderText="https://blink42.com"
                             MinHeight="40"
                             FontSize="14"
                             TextChanged="UrlTextBox_TextChanged"/>

@@ -167,7 +167,7 @@ namespace WebPaper
                 webView.CoreWebView2.NavigationStarting += WebView_NavigationStarting;
 
                 // Navigate to configured URL
-                var url = _config?.WallpaperUrl ?? "https://www.example.com";
+                var url = _config?.WallpaperUrl ?? "https://blink42.com";
                 Log.Information($"Navigating to: {url}");
                 webView.CoreWebView2.Navigate(url);
             }

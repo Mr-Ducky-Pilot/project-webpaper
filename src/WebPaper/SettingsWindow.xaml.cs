@@ -275,7 +275,7 @@ namespace WebPaper
                 // Build updated config from UI
                 var newConfig = new AppConfig
                 {
-                    WallpaperUrl = UrlTextBox.Text?.Trim() ?? "https://www.example.com",
+                    WallpaperUrl = UrlTextBox.Text?.Trim() ?? "https://blink42.com",
                     PerformanceOptimizationEnabled = PerformanceToggle.IsOn,
                     BatteryPauseThreshold = (int)BatterySlider.Value,
                     ShowPauseNotifications = NotificationsToggle.IsOn,

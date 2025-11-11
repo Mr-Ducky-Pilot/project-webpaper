@@ -12,7 +12,7 @@ namespace WebPaper
     public sealed partial class WelcomeWindow : Window
     {
         private Services.ConfigManager? _configManager;
-        private string _selectedUrl = "https://www.example.com";
+        private string _selectedUrl = "https://blink42.com";
         public bool SetupCompleted { get; private set; } = false;
 
         public WelcomeWindow(Services.ConfigManager configManager)

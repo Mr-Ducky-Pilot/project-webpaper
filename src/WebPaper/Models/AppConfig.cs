@@ -15,7 +15,7 @@ namespace WebPaper.Models
         /// <summary>
         /// URL to display as wallpaper
         /// </summary>
-        public string WallpaperUrl { get; set; } = "https://www.example.com";
+        public string WallpaperUrl { get; set; } = "https://blink42.com";
 
         /// <summary>
         /// Whether to start WebPaper when Windows starts
@@ -59,7 +59,7 @@ namespace WebPaper.Models
         {
             return new AppConfig
             {
-                WallpaperUrl = "https://www.example.com",
+                WallpaperUrl = "https://blink42.com",
                 AutoStartEnabled = false,
                 MinimizeToTray = true,
                 PerformanceOptimizationEnabled = true,
