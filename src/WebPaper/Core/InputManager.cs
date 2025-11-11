@@ -23,6 +23,7 @@ namespace WebPaper.Core
         private HookProc? _keyboardHookCallback;
         private CoreWebView2? _webView;
         private IntPtr _webViewHandle = IntPtr.Zero;
+        private IntPtr _inputHandle = IntPtr.Zero; // CRITICAL: Chrome_WidgetWin_1 for input forwarding
         private IntPtr _mainWindowHandle = IntPtr.Zero; // ADDED: Store main window handle for focus control
         private DispatcherQueue? _dispatcherQueue; // CRITICAL: For marshaling WebView2 calls to UI thread
         private bool _isEnabled = false;
@@ -73,6 +74,21 @@ namespace WebPaper.Core
             _webViewHandle = webViewHandle;
             _mainWindowHandle = mainWindowHandle; // CRITICAL: We need the main window to control focus
             _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue)); // CRITICAL: For UI thread marshaling
+
+            // CRITICAL FIX: Find Chrome_WidgetWin_1 for input forwarding (same as Lively Wallpaper)
+            // WebView2 window hierarchy: Chrome_RenderWidgetHostHWND -> Chrome_WidgetWin_0 -> Chrome_WidgetWin_1
+            // We must send input to Chrome_WidgetWin_1, not the top-level window!
+            _inputHandle = FindWebView2InputHandle(webViewHandle);
+            if (_inputHandle == IntPtr.Zero)
+            {
+                Console.WriteLine("InputManager WARNING: Could not find Chrome_WidgetWin_1, falling back to main WebView handle");
+                Console.WriteLine("  This may cause input to not work correctly!");
+                _inputHandle = webViewHandle; // Fallback
+            }
+            else
+            {
+                Console.WriteLine($"InputManager: Found Chrome_WidgetWin_1 input handle: 0x{_inputHandle:X8}");
+            }
 
             try
             {
@@ -295,6 +311,39 @@ namespace WebPaper.Core
         }
 
         /// <summary>
+        /// Finds the Chrome_WidgetWin_1 window inside WebView2 for input forwarding
+        /// This is the correct window to send input messages to (discovered by studying Lively Wallpaper)
+        /// </summary>
+        private IntPtr FindWebView2InputHandle(IntPtr webViewHandle)
+        {
+            try
+            {
+                // Find Chrome_WidgetWin_0 child
+                IntPtr chromeWidgetWin0 = FindWindowEx(webViewHandle, IntPtr.Zero, "Chrome_WidgetWin_0", null);
+                if (chromeWidgetWin0 == IntPtr.Zero)
+                {
+                    Console.WriteLine("InputManager: Chrome_WidgetWin_0 not found");
+                    return IntPtr.Zero;
+                }
+
+                // Find Chrome_WidgetWin_1 child of Chrome_WidgetWin_0
+                IntPtr chromeWidgetWin1 = FindWindowEx(chromeWidgetWin0, IntPtr.Zero, "Chrome_WidgetWin_1", null);
+                if (chromeWidgetWin1 == IntPtr.Zero)
+                {
+                    Console.WriteLine("InputManager: Chrome_WidgetWin_1 not found");
+                    return IntPtr.Zero;
+                }
+
+                return chromeWidgetWin1;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"InputManager: Error finding input handle - {ex.Message}");
+                return IntPtr.Zero;
+            }
+        }
+
+        /// <summary>
         /// Forwards mouse event to WebView2
         /// </summary>
         private void ForwardMouseEvent(IntPtr wParam, MSLLHOOKSTRUCT hookStruct)
@@ -314,45 +363,26 @@ namespace WebPaper.Core
                     _lastEventTime = DateTime.Now;
                 }
 
-                // Send message to WebView's window handle
-                if (_webViewHandle != IntPtr.Zero && _webView != null)
+                // Forward input to WebView2's Chrome_WidgetWin_1 child window (discovered from Lively Wallpaper)
+                if (_inputHandle != IntPtr.Zero)
                 {
-                    // CRITICAL RESEARCH FINDING (2024):
-                    // WS_CHILD windows parented to WorkerW CANNOT receive focus via SetFocus!
-                    // "When a window's parent is set to WorkerW, there is no way to interact with
-                    // the form - the desktop is not designed to have interactive children"
-                    //
-                    // SOLUTION: Use JavaScript simulation to directly trigger events on the webpage
-                    // This is likely what Lively Wallpaper uses for click support
+                    // Convert screen coordinates to client coordinates
+                    POINT clientPt = pt;
+                    ScreenToClient(_inputHandle, ref clientPt);
 
-                    // For clicks, use JavaScript simulation (async - fire and forget)
+                    // Build lParam: low-word = x, high-word = y
+                    IntPtr lParam = MakeLParam(clientPt.X, clientPt.Y);
+                    IntPtr wParam = MakeMouseWParam(hookStruct);
+
+                    // For clicks, log the action
                     if (msg == WM_LBUTTONDOWN)
                     {
-                        // Convert to client coordinates for JavaScript
-                        POINT clientPt = pt;
-                        ScreenToClient(_webViewHandle, ref clientPt);
-
                         Console.WriteLine($"InputManager: LCLICK at screen({pt.X},{pt.Y}) -> client({clientPt.X},{clientPt.Y})");
-                        Console.WriteLine($"  Using JavaScript simulation (bypasses Windows focus)");
-
-                        // Simulate click via JavaScript (fire and forget)
-                        SimulateClickViaJavaScript(clientPt.X, clientPt.Y);
+                        Console.WriteLine($"  Forwarding to Chrome_WidgetWin_1 via PostMessage");
                     }
 
-                    // For scroll, use JavaScript simulation (PostMessage won't work without focus)
-                    if (msg == WM_MOUSEWHEEL)
-                    {
-                        POINT clientPt = pt;
-                        ScreenToClient(_webViewHandle, ref clientPt);
-
-                        int wheelDelta = (short)((hookStruct.mouseData >> 16) & 0xFFFF);
-
-                        // Positive delta = scroll up, negative = scroll down
-                        // Each delta unit is typically 120
-                        int scrollAmount = -wheelDelta; // Invert for natural scrolling direction
-
-                        SimulateScrollViaJavaScript(clientPt.X, clientPt.Y, scrollAmount);
-                    }
+                    // Forward the message using PostMessage (works because we're using the correct child window!)
+                    PostMessage(_inputHandle, msg, wParam, lParam);
                 }
                 else
                 {
@@ -770,11 +800,11 @@ namespace WebPaper.Core
             {
                 uint msg = (uint)wParam.ToInt32();
 
-                // Send keyboard message to WebView
-                if (_webViewHandle != IntPtr.Zero)
+                // Send keyboard message to Chrome_WidgetWin_1
+                if (_inputHandle != IntPtr.Zero)
                 {
                     IntPtr keyWParam = new IntPtr(vkCode);
-                    PostMessage(_webViewHandle, msg, keyWParam, lParam);
+                    PostMessage(_inputHandle, msg, keyWParam, lParam);
                 }
             }
             catch (Exception ex)
@@ -850,7 +880,8 @@ namespace WebPaper.Core
                    $"  Enabled: {_isEnabled}\n" +
                    $"  Mouse Hook: {(_mouseHookId != IntPtr.Zero ? $"0x{_mouseHookId:X8}" : "Not installed")}\n" +
                    $"  Keyboard Hook: {(_keyboardHookId != IntPtr.Zero ? $"0x{_keyboardHookId:X8}" : "Not installed")}\n" +
-                   $"  WebView Handle: {(_webViewHandle != IntPtr.Zero ? $"0x{_webViewHandle:X8}" : "Not set")}";
+                   $"  WebView Handle: {(_webViewHandle != IntPtr.Zero ? $"0x{_webViewHandle:X8}" : "Not set")}\n" +
+                   $"  Input Handle (Chrome_WidgetWin_1): {(_inputHandle != IntPtr.Zero ? $"0x{_inputHandle:X8}" : "Not found")}";
         }
 
         /// <summary>
