@@ -46,12 +46,6 @@
                        Padding="20"
                        HorizontalAlignment="Center"
                        Margin="0,0,0,32">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#40000000"
-                                        BlurRadius="24"
-                                        ShadowDepth="0"
-                                        Opacity="0.3"/>
-                    </Border.Effect>
                     <Image Source="Assets/WebPaperLogo.png"
                           Stretch="Uniform"/>
                 </Border>
@@ -106,11 +100,6 @@
                 <Border Background="#DD000000"
                        CornerRadius="12"
                        Padding="32">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#80000000"
-                                        BlurRadius="32"
-                                        ShadowDepth="0"/>
-                    </Border.Effect>
 
                     <StackPanel Spacing="16">
                         <!-- Error Icon and Title -->
