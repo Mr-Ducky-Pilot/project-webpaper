@@ -6,8 +6,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- XamlControlsResources removed for unpackaged deployment compatibility -->
-                <!-- Basic WinUI controls like ProgressRing work without it -->
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
             <!-- Other app resources here -->
