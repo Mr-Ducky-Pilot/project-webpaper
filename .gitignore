@@ -109,3 +109,4 @@ logs/
 ## Backup files
 *.bak
 *.backup
+lively-reference/
