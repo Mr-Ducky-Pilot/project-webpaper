@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using WebPaper.Models;
 using WebPaper.Native;
 using static WebPaper.Native.NativeMethods;
