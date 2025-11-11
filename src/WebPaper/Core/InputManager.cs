@@ -210,22 +210,19 @@ namespace WebPaper.Core
                 GetClassName(hwnd, className, className.Capacity);
                 string classNameStr = className.ToString();
 
-                // Desktop icons are in "SysListView32" window
+                // CRITICAL FIX: Only reject actual desktop ICONS (SysListView32)
+                // SHELLDLL_DefView is the entire desktop surface, not just icons!
+                // We should forward clicks on empty desktop space to the wallpaper.
+
                 if (classNameStr.Contains("SysListView32"))
                 {
-                    // Click is on a desktop icon - don't forward
+                    // This is an actual desktop icon list - don't forward
                     return false;
                 }
 
-                // Check if it's the SHELLDLL_DefView (desktop window)
-                if (classNameStr.Contains("SHELLDLL_DefView"))
-                {
-                    // Click is on desktop, but might still be on an icon
-                    // More sophisticated hit-testing could be done here
-                    return false;
-                }
-
-                // Assume click is on wallpaper
+                // For all other windows (including SHELLDLL_DefView empty space),
+                // forward to wallpaper. The wallpaper is behind everything, so if
+                // nothing else handled the click, it should go to us.
                 return true;
             }
             catch
@@ -255,24 +252,24 @@ namespace WebPaper.Core
                     _lastEventTime = DateTime.Now;
                 }
 
-                // Convert to client coordinates (relative to WebView)
-                // Note: For wallpaper, screen coordinates = client coordinates usually
-                // But you might need to adjust based on window position
-
                 // Send message to WebView's window handle
                 if (_webViewHandle != IntPtr.Zero)
                 {
+                    // CRITICAL: Convert screen coordinates to client coordinates
+                    // The WebView expects coordinates relative to its window origin
+                    POINT clientPt = pt;
+                    ScreenToClient(_webViewHandle, ref clientPt);
+
                     // Create wParam for mouse messages (includes key states)
                     IntPtr mouseWParam = MakeMouseWParam(hookStruct);
-                    IntPtr mouseLParam = MakeLParam(pt.X, pt.Y);
+                    IntPtr mouseLParam = MakeLParam(clientPt.X, clientPt.Y);
 
                     // Post the message (non-blocking)
                     PostMessage(_webViewHandle, msg, mouseWParam, mouseLParam);
                 }
                 else
                 {
-                    // Fallback: Use WebView2's CoreWebView2 API
-                    // This is less direct but more reliable
+                    // Fallback: Log for debugging
                     LogMouseEvent(msg, pt);
                 }
             }
