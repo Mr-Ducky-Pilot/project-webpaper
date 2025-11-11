@@ -210,25 +210,26 @@ namespace WebPaper.Core
                 GetClassName(hwnd, className, className.Capacity);
                 string classNameStr = className.ToString();
 
-                // CRITICAL FIX: Only reject actual desktop ICONS (SysListView32)
-                // SHELLDLL_DefView is the entire desktop surface, not just icons!
-                // We should forward clicks on empty desktop space to the wallpaper.
-
+                // Desktop icons are in "SysListView32" window - don't forward those
                 if (classNameStr.Contains("SysListView32"))
                 {
-                    // This is an actual desktop icon list - don't forward
                     return false;
                 }
 
-                // For all other windows (including SHELLDLL_DefView empty space),
-                // forward to wallpaper. The wallpaper is behind everything, so if
-                // nothing else handled the click, it should go to us.
-                return true;
+                // For desktop surface (SHELLDLL_DefView) and Progman, forward to wallpaper
+                // These are the desktop background areas where our wallpaper should be interactive
+                if (classNameStr.Contains("SHELLDLL_DefView") || classNameStr.Contains("Progman"))
+                {
+                    return true;
+                }
+
+                // For any other window, don't forward (might be another app)
+                return false;
             }
             catch
             {
-                // On error, assume wallpaper (safer to forward)
-                return true;
+                // On error, don't forward (safer default)
+                return false;
             }
         }
 
@@ -258,14 +259,27 @@ namespace WebPaper.Core
                     // CRITICAL: Convert screen coordinates to client coordinates
                     // The WebView expects coordinates relative to its window origin
                     POINT clientPt = pt;
-                    ScreenToClient(_webViewHandle, ref clientPt);
+                    bool conversionSuccess = ScreenToClient(_webViewHandle, ref clientPt);
+
+                    // Debug: Log click events (not moves to avoid spam)
+                    if (msg == WM_LBUTTONDOWN)
+                    {
+                        Console.WriteLine($"InputManager: Forwarding LCLICK at screen({pt.X},{pt.Y}) -> client({clientPt.X},{clientPt.Y}) to 0x{_webViewHandle:X8}");
+                        Console.WriteLine($"  ScreenToClient conversion: {(conversionSuccess ? "SUCCESS" : "FAILED")}");
+                    }
 
                     // Create wParam for mouse messages (includes key states)
                     IntPtr mouseWParam = MakeMouseWParam(hookStruct);
                     IntPtr mouseLParam = MakeLParam(clientPt.X, clientPt.Y);
 
                     // Post the message (non-blocking)
-                    PostMessage(_webViewHandle, msg, mouseWParam, mouseLParam);
+                    bool postSuccess = PostMessage(_webViewHandle, msg, mouseWParam, mouseLParam);
+
+                    if (msg == WM_LBUTTONDOWN && !postSuccess)
+                    {
+                        uint error = GetLastError();
+                        Console.WriteLine($"  PostMessage FAILED! Error: {error}");
+                    }
                 }
                 else
                 {
