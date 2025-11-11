@@ -156,7 +156,6 @@
                            Margin="0,16,0,0">
                     <Button Content="Get Started"
                            Click="GetStartedButton_Click"
-                           Style="{StaticResource AccentButtonStyle}"
                            MinWidth="160"
                            Padding="24,12"/>
                 </StackPanel>

@@ -417,7 +417,7 @@ namespace WebPaper
             }
         }
 
-        private void ToggleWallpaper()
+        private async void ToggleWallpaper()
         {
             try
             {
@@ -428,25 +428,33 @@ namespace WebPaper
                     // Resume wallpaper
                     if (_performanceManager != null)
                     {
-                        // TODO: Resume if paused
+                        await _performanceManager.ResumeAsync();
                     }
                     _trayIconManager?.UpdateTooltip("WebPaper - Enabled");
-                    Log.Information("Wallpaper enabled");
+                    _trayIconManager?.ShowNotification(
+                        "WebPaper Enabled",
+                        "Wallpaper is now active",
+                        System.Windows.Forms.ToolTipIcon.Info);
+                    Log.Information("Wallpaper enabled by user");
                 }
                 else
                 {
                     // Pause wallpaper
                     if (_performanceManager != null)
                     {
-                        // TODO: Pause
+                        await _performanceManager.PauseAsync();
                     }
                     _trayIconManager?.UpdateTooltip("WebPaper - Disabled");
-                    Log.Information("Wallpaper disabled");
+                    _trayIconManager?.ShowNotification(
+                        "WebPaper Disabled",
+                        "Wallpaper is now paused",
+                        System.Windows.Forms.ToolTipIcon.Info);
+                    Log.Information("Wallpaper disabled by user");
                 }
             }
             catch (Exception ex)
             {
-                Log.Information($"Error toggling wallpaper: {ex.Message}");
+                Log.Error(ex, "Error toggling wallpaper");
             }
         }
 

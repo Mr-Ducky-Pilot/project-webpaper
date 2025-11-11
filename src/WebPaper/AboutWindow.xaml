@@ -17,7 +17,7 @@
 
         <!-- Header with app icon and name -->
         <Grid Grid.Row="0"
-              Background="{ThemeResource AccentAAFillColorDefaultBrush}"
+              Background="#0078D4"
               Padding="24,32">
             <StackPanel HorizontalAlignment="Center" Spacing="12">
                 <TextBlock Text="🌐"
@@ -174,7 +174,6 @@
               BorderThickness="0,1,0,0">
             <Button Content="Close"
                    Click="CloseButton_Click"
-                   Style="{StaticResource AccentButtonStyle}"
                    HorizontalAlignment="Right"
                    MinWidth="100"/>
         </Grid>
