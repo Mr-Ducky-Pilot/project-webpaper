@@ -654,21 +654,48 @@ namespace WebPaper
         {
             try
             {
-                // Try to find WebView2's child window
-                // WebView2 creates a child window for rendering
+                // CRITICAL FIX: WebView2's Chrome windows are CHILD WINDOWS of our main window
+                // We must search child windows, not top-level windows!
+                //
+                // Window hierarchy:
+                //   MainWindow (_windowHandle)
+                //     └─ Chrome_RenderWidgetHostHWND (the WebView2 render window)
+                //         └─ Chrome_WidgetWin_0
+                //             └─ Chrome_WidgetWin_1
+
+                Log.Information("Searching for WebView2 Chrome_RenderWidgetHostHWND as child of main window...");
+
+                // Try multiple possible class names that WebView2 might use
+                string[] possibleClassNames =
+                {
+                    "Chrome_RenderWidgetHostHWND",  // Standard name
+                    "Chrome_WidgetWin_0",            // Sometimes this is the top-level one
+                    "Chrome_WidgetWin_1"             // Fallback
+                };
+
+                foreach (var className in possibleClassNames)
+                {
+                    IntPtr handle = Native.NativeMethods.FindWindowEx(_windowHandle, IntPtr.Zero, className, null);
+                    if (handle != IntPtr.Zero)
+                    {
+                        Log.Information($"Found WebView2 window: {className} (0x{handle:X8})");
+                        return handle;
+                    }
+                }
+
+                // If FindWindowEx doesn't work, enumerate all child windows
+                Log.Information("FindWindowEx failed, enumerating all child windows...");
                 IntPtr childHandle = IntPtr.Zero;
 
-                Native.NativeMethods.EnumWindows((hwnd, lparam) =>
+                Native.NativeMethods.EnumChildWindows(_windowHandle, (hwnd, lparam) =>
                 {
-                    // Check if this window is a child of our window
-                    IntPtr parent = Native.NativeMethods.GetWindow(hwnd, Native.NativeMethods.GetWindowType.GW_OWNER);
-
-                    // Get the window class
                     var className = WorkerWManager.GetWindowClassName(hwnd);
+                    Log.Information($"  Found child window: {className} (0x{hwnd:X8})");
 
-                    // WebView2 uses Chrome_WidgetWin_* windows
-                    if (className.Contains("Chrome_WidgetWin"))
+                    // WebView2 uses Chrome_* windows
+                    if (className.Contains("Chrome_"))
                     {
+                        Log.Information($"  -> This looks like WebView2! Using 0x{hwnd:X8}");
                         childHandle = hwnd;
                         return false; // Stop enumeration
                     }
@@ -676,10 +703,18 @@ namespace WebPaper
                     return true; // Continue enumeration
                 }, IntPtr.Zero);
 
-                return childHandle;
+                if (childHandle != IntPtr.Zero)
+                {
+                    Log.Information($"Found WebView2 render window via enumeration: 0x{childHandle:X8}");
+                    return childHandle;
+                }
+
+                Log.Warning("Could not find any Chrome_* child windows!");
+                return IntPtr.Zero;
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Error(ex, "Error finding WebView2 handle");
                 return IntPtr.Zero;
             }
         }
