@@ -60,26 +60,32 @@ namespace WebPaper
                 _appWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
                 _appWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
 
-                // Get primary display dimensions
-                var displayArea = DisplayArea.Primary;
-                var workArea = displayArea.WorkArea;
+                // CRITICAL: Get PRIMARY monitor dimensions (monitor with taskbar)
+                // Use GetSystemMetrics to get actual primary monitor size
+                int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
+                int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
 
-                // Resize window to cover entire screen
+                Log.Information($"Primary monitor dimensions: {screenWidth}x{screenHeight}");
+
+                // Resize window to cover primary screen
                 _appWindow.Resize(new SizeInt32
                 {
-                    Width = workArea.Width,
-                    Height = workArea.Height
+                    Width = screenWidth,
+                    Height = screenHeight
                 });
 
-                // Move window to top-left corner
+                // Move window to origin (0, 0) of primary monitor
                 _appWindow.Move(new PointInt32
                 {
-                    X = workArea.X,
-                    Y = workArea.Y
+                    X = 0,
+                    Y = 0
                 });
+
+                Log.Information($"Window positioned at (0, 0) with size {screenWidth}x{screenHeight}");
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Failed to setup window");
                 ShowError($"Failed to setup window: {ex.Message}");
             }
         }
@@ -325,22 +331,35 @@ namespace WebPaper
                     Log.Warning($"! Window parent mismatch. Expected: 0x{workerW:X8}, Got: 0x{parent:X8}");
                 }
 
-                // Ensure window is positioned and sized correctly to fill the desktop
-                Log.Information("Step 5.6: Positioning window to fill desktop...");
-                var displayArea = DisplayArea.Primary;
-                var workArea = displayArea.WorkArea;
+                // Ensure window is positioned and sized correctly to fill PRIMARY desktop
+                Log.Information("Step 5.6: Positioning window to fill PRIMARY desktop...");
 
-                Native.NativeMethods.SetWindowPos(
+                // CRITICAL: Use GetSystemMetrics to get PRIMARY monitor dimensions
+                // This ensures we target the main monitor with the taskbar
+                int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
+                int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
+
+                Log.Information($"Primary monitor size from GetSystemMetrics: {screenWidth}x{screenHeight}");
+
+                // Position window at origin (0, 0) with primary monitor size
+                bool setPosResult = Native.NativeMethods.SetWindowPos(
                     _windowHandle,
                     IntPtr.Zero,
                     0, 0,
-                    workArea.Width, workArea.Height,
+                    screenWidth, screenHeight,
                     Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
-                    Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW
+                    Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
                 );
 
-                Log.Information($"Window positioned at (0, 0) with size {workArea.Width}x{workArea.Height}");
-                Log.Information($"Step 5.7: Desktop attachment complete!");
+                Log.Information($"SetWindowPos result: {setPosResult}");
+                Log.Information($"Window positioned at (0, 0) with size {screenWidth}x{screenHeight}");
+
+                // Explicitly show the window
+                Log.Information("Step 5.7: Explicitly showing window...");
+                Native.NativeMethods.ShowWindow(_windowHandle, Native.NativeMethods.ShowWindowCommands.SW_SHOW);
+
+                Log.Information($"Step 5.8: Desktop attachment complete!");
             }
             catch (Exception ex)
             {

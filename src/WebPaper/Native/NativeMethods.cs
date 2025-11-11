@@ -225,6 +225,16 @@ namespace WebPaper.Native
         public const uint WS_EX_NOACTIVATE = 0x08000000;
         public const uint WS_EX_TOPMOST = 0x00000008;
 
+        /// <summary>
+        /// Retrieves system metrics and configuration settings.
+        /// </summary>
+        [DllImport("user32.dll")]
+        public static extern int GetSystemMetrics(int nIndex);
+
+        // System metrics constants
+        public const int SM_CXSCREEN = 0;  // Width of primary monitor in pixels
+        public const int SM_CYSCREEN = 1;  // Height of primary monitor in pixels
+
         #endregion
 
         #region Input Handling
