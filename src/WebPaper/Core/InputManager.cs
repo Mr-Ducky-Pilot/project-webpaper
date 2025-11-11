@@ -212,31 +212,24 @@ namespace WebPaper.Core
                         _mouseOverWallpaper = false;
                     }
 
-                    // Debug: Log clicks to diagnose the issue
+                    // Handle clicks for desktop interaction
                     if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK)
                     {
                         Console.WriteLine($"InputManager: {GetMouseEventName(msg)} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
-                            $"OnWallpaper: {isOverWallpaper}, IconWindow: 0x{_desktopIconWindow:X8}");
+                            $"OnWallpaper: {isOverWallpaper}");
 
-                        // CRITICAL FIX: Forward to BOTH icons and wallpaper
-                        // Strategy: Desktop icons window (SysListView32) will consume the click if there's an icon
-                        // at this position. If no icon, it ignores the message.
-                        // Then our wallpaper handles the click for webpage interaction.
-                        // This works because SysListView32 uses hit-testing internally.
+                        // CRITICAL FIX: Only forward clicks that are actually on our wallpaper
+                        // With HWND_BOTTOM set, desktop icons are on top in Z-order
+                        // Windows routes clicks to icons naturally - we don't need to forward them
+                        // We ONLY forward clicks on empty desktop space (our wallpaper) to WebView2
 
-                        bool forwardedToIcons = false;
-                        if (_desktopIconWindow != IntPtr.Zero)
-                        {
-                            ForwardToDesktopIcons(_desktopIconWindow, msg, hookStruct);
-                            forwardedToIcons = true;
-                        }
-
-                        // Forward to wallpaper for webpage interaction
-                        // Note: This creates a potential double-click issue, but we prioritize icons
                         if (isOverWallpaper)
                         {
+                            // Click is on wallpaper (empty desktop or webpage) - forward to WebView2
                             ForwardMouseEvent(wParam, hookStruct);
                         }
+                        // else: Click is on icon or other window - let Windows handle it naturally
+                        // Don't forward! This prevents icon focus issues and duplicate typing
                     }
                     else if (msg == WM_MOUSEWHEEL)
                     {
