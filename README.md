@@ -2,28 +2,28 @@
 
 **Transform any webpage into a fully interactive desktop wallpaper for Windows**
 
-![Status](https://img.shields.io/badge/status-beta-green)
-![Version](https://img.shields.io/badge/version-1.0.0--beta-blue)
+![Status](https://img.shields.io/badge/status-in%20development-orange)
+![Version](https://img.shields.io/badge/version-0.9.0--alpha-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
-![Build](https://img.shields.io/badge/build-passing-brightgreen)
+![Build](https://img.shields.io/badge/build-debugging-yellow)
 
 ---
 
 ## 🎯 What is WebPaper?
 
-WebPaper is a **production-ready** Windows application that renders any webpage as your desktop wallpaper with **full interactivity**:
+WebPaper is a Windows application **in development** that aims to render any webpage as your desktop wallpaper with full interactivity:
 
-- ✅ **Scroll** through content with your mouse wheel
-- ✅ **Click** links, buttons, and interactive elements
-- ✅ **Type** in search boxes and forms
-- ✅ **Login** and stay authenticated across sessions
-- ✅ **Watch** videos, streams, and animations
-- ✅ **Desktop icons** remain on top and fully clickable
-- ✅ **Auto-pauses** during fullscreen apps and low battery
-- ✅ **Secure** cookie storage with Windows DPAPI encryption
+- ✅ **Watch** videos, streams, and animations (works!)
+- ✅ **Login** and stay authenticated across sessions (works!)
+- ✅ **Auto-pauses** during fullscreen apps and low battery (works!)
+- ✅ **Secure** cookie storage with Windows DPAPI encryption (works!)
+- ⚠️ **Click** links, buttons, and interactive elements (debugging in progress)
+- ⚠️ **Scroll** through content with your mouse wheel (debugging in progress)
+- ⚠️ **Type** in search boxes and forms (debugging in progress)
+- ⚠️ **Desktop icons** remain on top and fully clickable (currently blocked)
 
-Think of it as having a live, interactive browser window as your desktop background - perfect for dashboards, social media feeds, news sites, monitoring tools, or just aesthetic web experiences.
+The core challenge is making a WebView2 control interactive when rendered as a child window behind the desktop surface. This is an **active development project** working towards full interactivity.
 
 **Watch it in action:** *(demo video coming soon)*
 
@@ -31,28 +31,30 @@ Think of it as having a live, interactive browser window as your desktop backgro
 
 ## 🚀 Project Status
 
-**Current Phase:** Core Development Complete ✅
+**Current Phase:** Core Development - Input System Debugging ⚠️
 
 **Implementation Progress:**
 
 ```
-Overall: ███████████████░░░░░ 75% Complete
+Overall: ██████████████░░░░░░ 70% Complete
 
 ✅ Week 0: Planning & Architecture (100%)
 ✅ Week 1: Foundation & Desktop Integration (100%)
-✅ Week 2: Input Handling (100%)
+⚠️ Week 2: Input Handling (90% - Debugging in progress)
 ✅ Week 3: Cookie Persistence (100%)
 ✅ Week 4: Performance Optimization (100%)
-📦 Week 9-10: Packaging & Distribution (In Progress)
+📋 Week 9-10: Packaging & Distribution (Pending)
 ```
 
 **Timeline:**
 - ✅ **Phase 0:** Research & Planning (November 8, 2025)
 - ✅ **Phase 1:** Foundation (Weeks 1-2) - **COMPLETE**
-- ✅ **Phase 2:** Core Features (Weeks 3-4) - **COMPLETE**
-- 📦 **Phase 4:** Testing & Release (Weeks 9-10) - **IN PROGRESS**
+- ⚠️ **Phase 2:** Core Features (Weeks 3-4) - **INPUT DEBUGGING**
+- 📋 **Phase 4:** Testing & Release (Weeks 9-10) - **PENDING**
 
-**Next Milestone:** v1.0.0 Release (MSIX Installer)
+**Next Milestone:** Fix input interactivity with WebView2 behind desktop
+
+**⚠️ KNOWN CRITICAL ISSUE:** Input forwarding not working with WebView2 as WS_CHILD window. See [CURRENT_ISSUES.md](CURRENT_ISSUES.md) for details.
 
 ---
 
@@ -96,9 +98,9 @@ dotnet run --project src/WebPaper/WebPaper.csproj
 | Feature | Status | Description |
 |---------|--------|-------------|
 | **Webpage Rendering** | ✅ Complete | Any webpage as wallpaper via WebView2 |
-| **Mouse Interaction** | ✅ Complete | Click, scroll, right-click, hover |
-| **Keyboard Input** | ✅ Complete | Type in forms, use shortcuts |
-| **Desktop Icons** | ✅ Complete | Icons remain on top and clickable |
+| **Mouse Interaction** | ⚠️ In Progress | Click detection works, WebView2 not responding |
+| **Keyboard Input** | ⚠️ In Progress | Forwarding implemented, WebView2 not responding |
+| **Desktop Icons** | ⚠️ Blocked | Cannot click icons (wallpaper blocking input) |
 | **Cookie Persistence** | ✅ Complete | DPAPI-encrypted authentication storage |
 | **Login Helper** | ✅ Complete | Dedicated window for website login |
 | **Auto-Pause** | ✅ Complete | Pauses during fullscreen apps |
@@ -779,10 +781,10 @@ dotnet run --project src/WebPaper/WebPaper.csproj
 
 ---
 
-**Last Updated:** November 9, 2025
-**Version:** 1.0.0-beta
-**Status:** Production Ready - Packaging in Progress
-**Next Milestone:** v1.0.0 Public Release
+**Last Updated:** November 11, 2025
+**Version:** 0.9.0-alpha
+**Status:** In Development - Input System Debugging
+**Next Milestone:** Fix WebView2 input interactivity behind desktop
 
 ---
 
