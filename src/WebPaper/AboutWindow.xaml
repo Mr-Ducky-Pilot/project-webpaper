@@ -149,6 +149,9 @@
                         <HyperlinkButton Content="🌐 GitHub Repository"
                                         Click="GitHubButton_Click"
                                         Padding="0"/>
+                        <HyperlinkButton Content="💼 LinkedIn Profile"
+                                        Click="LinkedInButton_Click"
+                                        Padding="0"/>
                     </StackPanel>
                 </StackPanel>
 
@@ -161,6 +164,16 @@
                               FontWeight="SemiBold"/>
                     <TextBlock TextWrapping="Wrap" FontSize="14">
                         <Run Text="Omprakash J (MrDuck)" FontWeight="SemiBold"/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="💼 "/>
+                        <Hyperlink NavigateUri="https://www.linkedin.com/in/omprakash-jat/">
+                            <Run Text="LinkedIn Profile"/>
+                        </Hyperlink>
+                        <LineBreak/>
+                        <Run Text="🐙 "/>
+                        <Hyperlink NavigateUri="https://github.com/Mr-Ducky-Pilot">
+                            <Run Text="GitHub Profile"/>
+                        </Hyperlink>
                         <LineBreak/><LineBreak/>
                         <Run Text="For collaboration or commercial licensing:"/>
                         <LineBreak/>
