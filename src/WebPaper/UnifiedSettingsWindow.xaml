@@ -183,8 +183,7 @@
             <Button x:Name="ExitAppButton"
                    Content="Exit WebPaper"
                    Grid.Column="0"
-                   Click="ExitAppButton_Click"
-                   Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
+                   Click="ExitAppButton_Click"/>
 
             <Button x:Name="CloseButton"
                    Content="Close"
