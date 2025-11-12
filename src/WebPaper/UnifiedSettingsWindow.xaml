@@ -58,6 +58,7 @@
                     <StackPanel Spacing="8">
                         <RadioButton x:Name="WebPaperControlRadio"
                                     Content="WebPaper Control (Default)"
+                                    GroupName="ControlMode"
                                     IsChecked="True"
                                     Checked="ControlModeRadio_Checked"/>
                         <TextBlock Text="Interact with webpage - click, type, scroll. Desktop icons clickable."
@@ -67,6 +68,7 @@
 
                         <RadioButton x:Name="DesktopControlRadio"
                                     Content="Desktop Control"
+                                    GroupName="ControlMode"
                                     Checked="ControlModeRadio_Checked"
                                     Margin="0,12,0,0"/>
                         <TextBlock Text="Static wallpaper - no webpage interaction. All inputs go to Windows/desktop."
