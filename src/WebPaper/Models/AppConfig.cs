@@ -53,6 +53,11 @@ namespace WebPaper.Models
         public DateTime? LastLaunchDate { get; set; }
 
         /// <summary>
+        /// Control mode for input handling (WebPaper Control vs Desktop Control)
+        /// </summary>
+        public ControlMode ControlMode { get; set; } = ControlMode.WebPaperControl;
+
+        /// <summary>
         /// Creates a default configuration
         /// </summary>
         public static AppConfig CreateDefault()
@@ -66,7 +71,8 @@ namespace WebPaper.Models
                 BatteryPauseThreshold = 20,
                 ShowPauseNotifications = false,
                 IsFirstRun = true,
-                LastLaunchDate = null
+                LastLaunchDate = null,
+                ControlMode = ControlMode.WebPaperControl
             };
         }
 
