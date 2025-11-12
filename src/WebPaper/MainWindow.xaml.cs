@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Serilog;
 using WebPaper.Core;
 using Windows.Graphics;
+using Windows.System;
 using WinRT.Interop;
 using CoreWebView2 = Microsoft.Web.WebView2.Core.CoreWebView2;
 using CoreWebView2Environment = Microsoft.Web.WebView2.Core.CoreWebView2Environment;
@@ -516,11 +517,15 @@ namespace WebPaper
         {
             try
             {
-                // Check for Ctrl+R
-                var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
-                bool isCtrlPressed = (ctrlState & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+                // Check for Ctrl+R or F5
+                // Use WinUI3-compatible keyboard state detection
+                var window = Microsoft.UI.Xaml.Window.Current ?? this;
+                var coreWindow = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
 
-                if ((e.Key == Windows.System.VirtualKey.R && isCtrlPressed) || e.Key == Windows.System.VirtualKey.F5)
+                // Check if Control key is pressed (WinUI3 compatible way)
+                bool isCtrlPressed = (coreWindow & Microsoft.UI.Input.VirtualKeyStates.Down) == Microsoft.UI.Input.VirtualKeyStates.Down;
+
+                if ((e.Key == VirtualKey.R && isCtrlPressed) || e.Key == VirtualKey.F5)
                 {
                     // Reload the page
                     webView.CoreWebView2?.Reload();
