@@ -216,20 +216,32 @@ namespace WebPaper.Core
                     if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK)
                     {
                         Console.WriteLine($"InputManager: {GetMouseEventName(msg)} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
-                            $"OnWallpaper: {isOverWallpaper}");
+                            $"OnWallpaper: {isOverWallpaper}, IconWindow: 0x{_desktopIconWindow:X8}");
 
-                        // CRITICAL FIX: Only forward clicks that are actually on our wallpaper
-                        // With HWND_BOTTOM set, desktop icons are on top in Z-order
-                        // Windows routes clicks to icons naturally - we don't need to forward them
-                        // We ONLY forward clicks on empty desktop space (our wallpaper) to WebView2
+                        // CRITICAL FIX: "Double Forwarding" Strategy (from working commit 170c986)
+                        // Forward clicks to BOTH desktop icons AND wallpaper
+                        // - SysListView32 (desktop icons) has internal hit-testing
+                        // - If there's an icon at this position, SysListView32 consumes the click and handles it
+                        // - If no icon, SysListView32 ignores the message
+                        // - Then our wallpaper handles the click for webpage interaction
+                        // This works because SysListView32 uses hit-testing internally!
 
-                        if (isOverWallpaper)
+                        // SPECIAL HANDLING: Right-click on desktop should show desktop context menu, not browser menu
+                        // This is a user requirement - users typically don't need right-click on webpages
+                        bool isRightClick = (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP);
+
+                        // Step 1: Always forward ALL clicks to desktop icons first
+                        if (_desktopIconWindow != IntPtr.Zero)
                         {
-                            // Click is on wallpaper (empty desktop or webpage) - forward to WebView2
+                            ForwardToDesktopIcons(_desktopIconWindow, msg, hookStruct);
+                        }
+
+                        // Step 2: Forward to wallpaper ONLY for left-clicks when over wallpaper
+                        // Skip wallpaper for right-clicks to allow desktop context menu
+                        if (isOverWallpaper && !isRightClick)
+                        {
                             ForwardMouseEvent(wParam, hookStruct);
                         }
-                        // else: Click is on icon or other window - let Windows handle it naturally
-                        // Don't forward! This prevents icon focus issues and duplicate typing
                     }
                     else if (msg == WM_MOUSEWHEEL)
                     {
