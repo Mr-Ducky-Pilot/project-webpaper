@@ -20,6 +20,7 @@ namespace WebPaper.Services
         public event EventHandler? ExitRequested;
         public event EventHandler? ToggleWallpaperRequested;
         public event EventHandler? GoToHomePageRequested;
+        public event EventHandler? RefreshRequested;
 
         public void Initialize()
         {
@@ -33,50 +34,38 @@ namespace WebPaper.Services
                     Visible = true
                 };
 
-                // Create context menu
+                // Create context menu (for right-click)
                 var contextMenu = new ContextMenuStrip();
 
-                // Wallpaper control
-                var toggleItem = new ToolStripMenuItem("Enable Wallpaper")
-                {
-                    CheckOnClick = true,
-                    Checked = true
-                };
-                toggleItem.Click += (s, e) =>
-                {
-                    ToggleWallpaperRequested?.Invoke(this, EventArgs.Empty);
-                    toggleItem.Text = toggleItem.Checked ? "Disable Wallpaper" : "Enable Wallpaper";
-                };
-                contextMenu.Items.Add(toggleItem);
-
-                // Go to Home Page
-                var homePageItem = new ToolStripMenuItem("🏠 Go to Home Page");
-                homePageItem.Click += (s, e) => GoToHomePageRequested?.Invoke(this, EventArgs.Empty);
-                contextMenu.Items.Add(homePageItem);
+                // Refresh page
+                var refreshItem = new ToolStripMenuItem("🔄 Refresh Page");
+                refreshItem.Click += (s, e) => RefreshRequested?.Invoke(this, EventArgs.Empty);
+                contextMenu.Items.Add(refreshItem);
 
                 contextMenu.Items.Add(new ToolStripSeparator());
 
-                // Settings
-                var settingsItem = new ToolStripMenuItem("⚙️ Settings...");
+                // Open Settings (same as left-click)
+                var settingsItem = new ToolStripMenuItem("⚙️ Open Settings...");
                 settingsItem.Click += (s, e) => ShowSettingsRequested?.Invoke(this, EventArgs.Empty);
                 contextMenu.Items.Add(settingsItem);
-
-                // About
-                var aboutItem = new ToolStripMenuItem("ℹ️ About WebPaper");
-                aboutItem.Click += (s, e) => ShowAboutRequested?.Invoke(this, EventArgs.Empty);
-                contextMenu.Items.Add(aboutItem);
 
                 contextMenu.Items.Add(new ToolStripSeparator());
 
                 // Exit
-                var exitItem = new ToolStripMenuItem("🚪 Exit");
+                var exitItem = new ToolStripMenuItem("🚪 Exit WebPaper");
                 exitItem.Click += (s, e) => ExitRequested?.Invoke(this, EventArgs.Empty);
                 contextMenu.Items.Add(exitItem);
 
                 _notifyIcon.ContextMenuStrip = contextMenu;
 
-                // Double-click to show settings
-                _notifyIcon.DoubleClick += (s, e) => ShowSettingsRequested?.Invoke(this, EventArgs.Empty);
+                // Single left-click to show settings (replaces double-click)
+                _notifyIcon.MouseClick += (s, e) =>
+                {
+                    if (e.Button == MouseButtons.Left)
+                    {
+                        ShowSettingsRequested?.Invoke(this, EventArgs.Empty);
+                    }
+                };
 
                 Log.Information("System tray icon initialized");
             }

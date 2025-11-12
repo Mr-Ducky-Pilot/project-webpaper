@@ -354,6 +354,13 @@ namespace WebPaper
                 // Install hooks (CRITICAL: Pass main window handle + DispatcherQueue for thread marshaling)
                 _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle, _windowHandle, _dispatcherQueue!);
 
+                // Set control mode from configuration
+                if (_config != null)
+                {
+                    _inputManager.ControlMode = _config.ControlMode;
+                    Log.Information($"Control mode set to: {_config.ControlMode}");
+                }
+
                 Log.Information("Input hooks installed successfully");
             }
             catch (Exception ex)
@@ -426,6 +433,11 @@ namespace WebPaper
                 _trayIconManager.ExitRequested += (s, e) => ExitApplication();
                 _trayIconManager.ToggleWallpaperRequested += (s, e) => ToggleWallpaper();
                 _trayIconManager.GoToHomePageRequested += (s, e) => GoToHomePage();
+                _trayIconManager.RefreshRequested += (s, e) =>
+                {
+                    webView.CoreWebView2?.Reload();
+                    Log.Information("Page refreshed from tray icon");
+                };
 
                 Log.Information("System tray icon initialized");
             }
@@ -499,11 +511,34 @@ namespace WebPaper
             }
         }
 
-        private void ShowSettings()
+        // Keyboard shortcut handler for page refresh (Ctrl+R, F5)
+        private void MainWindow_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             try
             {
-                if (_configManager == null || _cookieManager == null)
+                // Check for Ctrl+R
+                var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+                bool isCtrlPressed = (ctrlState & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+
+                if ((e.Key == Windows.System.VirtualKey.R && isCtrlPressed) || e.Key == Windows.System.VirtualKey.F5)
+                {
+                    // Reload the page
+                    webView.CoreWebView2?.Reload();
+                    Log.Information("Page reloaded via keyboard shortcut");
+                    e.Handled = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error handling keyboard shortcut");
+            }
+        }
+
+        private void ShowUnifiedSettings()
+        {
+            try
+            {
+                if (_configManager == null)
                     return;
 
                 // CRITICAL FIX: System tray events fire on Windows Forms thread
@@ -512,29 +547,52 @@ namespace WebPaper
                 {
                     try
                     {
-                        // Create and show settings window on UI thread
-                        var settingsWindow = new SettingsWindow(_configManager, _cookieManager);
-                        settingsWindow.Activate();
-
-                        // If settings were saved, reload configuration
-                        settingsWindow.Closed += async (s, e) =>
-                        {
-                            if (settingsWindow.SettingsSaved)
+                        // Create and show unified settings window on UI thread
+                        var unifiedWindow = new UnifiedSettingsWindow(
+                            getConfig: () => _config ?? Models.AppConfig.CreateDefault(),
+                            onConfigChanged: async (updatedConfig) =>
                             {
-                                await LoadConfiguration();
-                                // Reload the page with new URL
+                                // Save configuration
+                                await _configManager.SaveConfigAsync(updatedConfig);
+                                _config = updatedConfig;
+
+                                // Update input manager control mode
+                                if (_inputManager != null)
+                                {
+                                    _inputManager.ControlMode = updatedConfig.ControlMode;
+                                }
+
+                                // Update performance manager
+                                if (_performanceManager != null)
+                                {
+                                    _performanceManager.IsEnabled = updatedConfig.PerformanceOptimizationEnabled;
+                                    _performanceManager.BatteryThreshold = updatedConfig.BatteryPauseThreshold;
+                                }
+
+                                Log.Information("Configuration updated");
+                            },
+                            onExitApp: () =>
+                            {
+                                Log.Information("Exit requested from settings window");
+                                Application.Current.Exit();
+                            },
+                            onRefreshRequested: () =>
+                            {
+                                // Reload webpage with potentially new URL
                                 if (webView.CoreWebView2 != null && _config != null)
                                 {
                                     webView.CoreWebView2.Navigate(_config.WallpaperUrl);
+                                    Log.Information($"Navigating to updated URL: {_config.WallpaperUrl}");
                                 }
                             }
-                        };
+                        );
 
-                        Log.Information("Settings window opened successfully");
+                        unifiedWindow.Activate();
+                        Log.Information("Unified settings window opened successfully");
                     }
                     catch (Exception ex)
                     {
-                        Log.Error(ex, "Error creating settings window on UI thread");
+                        Log.Error(ex, "Error creating unified settings window on UI thread");
                         _trayIconManager?.ShowNotification(
                             "Error",
                             $"Failed to open settings: {ex.Message}",
@@ -544,38 +602,18 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error dispatching settings window creation");
+                Log.Error(ex, "Error dispatching unified settings window creation");
             }
+        }
+
+        private void ShowSettings()
+        {
+            ShowUnifiedSettings();
         }
 
         private void ShowAbout()
         {
-            try
-            {
-                // CRITICAL FIX: System tray events fire on Windows Forms thread
-                // WinUI 3 windows must be created on UI thread - dispatch to DispatcherQueue
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    try
-                    {
-                        var aboutWindow = new AboutWindow();
-                        aboutWindow.Activate();
-                        Log.Information("About window opened successfully");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error(ex, "Error creating about window on UI thread");
-                        _trayIconManager?.ShowNotification(
-                            "Error",
-                            $"Failed to open about window: {ex.Message}",
-                            System.Windows.Forms.ToolTipIcon.Error);
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error dispatching about window creation");
-            }
+            ShowUnifiedSettings();
         }
 
         private async void ToggleWallpaper()
