@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="WebPaper.UnifiedSettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="WebPaper Settings">
+
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Padding="24,20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Spacing="4">
+                <TextBlock Text="⚙️ WebPaper Settings" FontSize="24" FontWeight="SemiBold"/>
+                <TextBlock x:Name="VersionText" Text="Version 1.0.0" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" Padding="24,20">
+            <StackPanel Spacing="24" MaxWidth="700">
+
+                <!-- Home URL Section -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Home URL" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock Text="The webpage to display as your wallpaper" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="HomeUrlTextBox"
+                                PlaceholderText="https://example.com"
+                                Grid.Column="0"/>
+                        <Button x:Name="ApplyUrlButton"
+                               Content="Apply &amp; Reload"
+                               Grid.Column="1"
+                               Style="{StaticResource AccentButtonStyle}"
+                               Click="ApplyUrlButton_Click"/>
+                    </Grid>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- Control Mode Section -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Control Mode" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                        Choose how you want to interact with your wallpaper and desktop
+                    </TextBlock>
+
+                    <RadioButtons x:Name="ControlModeRadio" SelectionChanged="ControlModeRadio_SelectionChanged">
+                        <RadioButton Content="WebPaper Control (Default)" Tag="WebPaper">
+                            <RadioButton.Content>
+                                <StackPanel Spacing="4" Margin="0,4">
+                                    <TextBlock Text="🌐 WebPaper Control (Default)" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Interact with webpage - click, type, scroll. Desktop icons clickable with single-click (right-click to open)."
+                                              TextWrapping="Wrap"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                              FontSize="12"/>
+                                </StackPanel>
+                            </RadioButton.Content>
+                        </RadioButton>
+
+                        <RadioButton Content="Desktop Control" Tag="Desktop" Margin="0,12,0,0">
+                            <RadioButton.Content>
+                                <StackPanel Spacing="4" Margin="0,4">
+                                    <TextBlock Text="🖥️ Desktop Control" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Static wallpaper - no webpage interaction. All mouse and keyboard inputs go to Windows/desktop normally."
+                                              TextWrapping="Wrap"
+                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                              FontSize="12"/>
+                                </StackPanel>
+                            </RadioButton.Content>
+                        </RadioButton>
+                    </RadioButtons>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- Performance Settings -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Performance" FontSize="18" FontWeight="SemiBold"/>
+
+                    <ToggleSwitch x:Name="PerformanceToggle"
+                                 Header="Auto-Pause During Fullscreen"
+                                 OnContent="Enabled"
+                                 OffContent="Disabled"
+                                 Toggled="PerformanceToggle_Toggled"/>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Battery Pause Threshold" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="BatterySlider"
+                                   Grid.Column="0"
+                                   Minimum="10"
+                                   Maximum="50"
+                                   StepFrequency="5"
+                                   TickFrequency="10"
+                                   TickPlacement="BottomRight"
+                                   ValueChanged="BatterySlider_ValueChanged"/>
+                            <TextBlock Grid.Column="1"
+                                      x:Name="BatteryValueText"
+                                      Text="20%"
+                                      VerticalAlignment="Center"
+                                      Margin="12,0,0,0"
+                                      MinWidth="40"/>
+                        </Grid>
+                        <TextBlock Text="Wallpaper will auto-pause when battery drops below this level"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                  FontSize="12"
+                                  TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- Monitor Information -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Display Information" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="MonitorInfoText"
+                              Text="Loading monitor information..."
+                              TextWrapping="Wrap"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- About Section -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="About" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                        WebPaper transforms any webpage into a fully interactive desktop wallpaper for Windows.
+                    </TextBlock>
+
+                    <StackPanel Spacing="8" Margin="0,8,0,0">
+                        <HyperlinkButton Content="🌐 GitHub Repository"
+                                        Click="GitHubButton_Click"
+                                        Padding="0"/>
+                        <HyperlinkButton Content="🐛 Report a Bug"
+                                        Click="ReportBugButton_Click"
+                                        Padding="0"/>
+                        <HyperlinkButton Content="💼 LinkedIn - Omprakash J"
+                                        Click="LinkedInButton_Click"
+                                        Padding="0"/>
+                    </StackPanel>
+
+                    <TextBlock Margin="0,12,0,0" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}">
+                        <Run Text="Made with ❤️ by MrDuck"/>
+                        <LineBreak/>
+                        <Run Text="📧 omprakashj2010@gmail.com"/>
+                    </TextBlock>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer with Action Buttons -->
+        <Grid Grid.Row="2"
+              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+              Padding="24,16"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+              BorderThickness="0,1,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="ExitAppButton"
+                   Content="Exit WebPaper"
+                   Grid.Column="0"
+                   Click="ExitAppButton_Click"
+                   Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
+
+            <Button x:Name="CloseButton"
+                   Content="Close"
+                   Grid.Column="2"
+                   Style="{StaticResource AccentButtonStyle}"
+                   Click="CloseButton_Click"
+                   MinWidth="100"/>
+        </Grid>
+    </Grid>
+</Window>

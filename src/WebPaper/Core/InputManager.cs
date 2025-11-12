@@ -47,6 +47,9 @@ namespace WebPaper.Core
         // Desktop icon window (SysListView32) - cached for click forwarding
         private IntPtr _desktopIconWindow = IntPtr.Zero;
 
+        // Control mode (WebPaper Control vs Desktop Control)
+        private ControlMode _controlMode = ControlMode.WebPaperControl;
+
         /// <summary>
         /// Gets or sets whether input forwarding is enabled
         /// </summary>
@@ -67,6 +70,22 @@ namespace WebPaper.Core
         /// Gets whether hooks are currently installed
         /// </summary>
         public bool HooksInstalled => _mouseHookId != IntPtr.Zero || _keyboardHookId != IntPtr.Zero;
+
+        /// <summary>
+        /// Gets or sets the control mode
+        /// </summary>
+        public ControlMode ControlMode
+        {
+            get => _controlMode;
+            set
+            {
+                if (_controlMode != value)
+                {
+                    _controlMode = value;
+                    Console.WriteLine($"InputManager: Control mode changed to {_controlMode}");
+                }
+            }
+        }
 
         /// <summary>
         /// Installs low-level mouse and keyboard hooks
@@ -197,6 +216,13 @@ namespace WebPaper.Core
 
                     // CRITICAL: Track mouse position for keyboard focus detection
                     _lastMousePosition = hookStruct.pt;
+
+                    // In Desktop Control mode, don't forward ANY mouse events to wallpaper
+                    if (_controlMode == ControlMode.DesktopControl)
+                    {
+                        return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
+                    }
+
                     bool isOverWallpaper = IsClickOnWallpaper(hookStruct.pt);
 
                     // Update wallpaper hover state and timestamp
@@ -227,7 +253,8 @@ namespace WebPaper.Core
                         // This works because SysListView32 uses hit-testing internally!
 
                         // SPECIAL HANDLING:
-                        // 1. Right-click should show desktop context menu, not browser menu
+                        // 1. Right-click: In WebPaper Control mode, show desktop context menu (not browser)
+                        //    User rarely needs right-click on webpages
                         // 2. Double-click should ONLY go to icons (for opening), NOT to wallpaper (prevents text selection)
                         bool isRightClick = (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP);
                         bool isDoubleClick = (msg == WM_LBUTTONDBLCLK);
@@ -293,6 +320,12 @@ namespace WebPaper.Core
                 // CRITICAL: Process quickly to avoid timeout
                 if (nCode >= HC_ACTION && _isEnabled && _webView != null)
                 {
+                    // In Desktop Control mode, don't forward ANY keyboard events to wallpaper
+                    if (_controlMode == ControlMode.DesktopControl)
+                    {
+                        return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
+                    }
+
                     // CRITICAL FIX: Only forward keyboard if mouse is over wallpaper!
                     // This prevents capturing keyboard input from other apps (browser, WhatsApp, notepad, etc.)
                     if (!_mouseOverWallpaper)
