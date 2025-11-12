@@ -201,20 +201,24 @@ namespace WebPaper.Core
                     // Handle clicks for desktop interaction
                     if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK)
                     {
-                        // Removed verbose mouse click logging - check log file for errors only
-
-                        // CRITICAL FIX: Only forward clicks that are actually on our wallpaper
-                        // With HWND_BOTTOM set, desktop icons are on top in Z-order
-                        // Windows routes clicks to icons naturally - we don't need to forward them
-                        // We ONLY forward clicks on empty desktop space (our wallpaper) to WebView2
+                        // CRITICAL: Only forward clicks that are actually on our wallpaper
+                        // With HWND_BOTTOM z-order, desktop icons appear on top naturally
+                        //
+                        // Icon interaction strategy:
+                        // - Single click on icon → Selects icon (Windows handles)
+                        // - Double click on icon → Opens icon (Windows handles)
+                        // - Right click on icon → Context menu (Windows handles)
+                        // - Enter key on selected icon → Opens icon (Windows handles)
+                        //
+                        // We ONLY forward clicks on empty desktop space to WebView2
 
                         if (isOverWallpaper)
                         {
                             // Click is on wallpaper (empty desktop or webpage) - forward to WebView2
                             ForwardMouseEvent(wParam, hookStruct);
                         }
-                        // else: Click is on icon or other window - let Windows handle it naturally
-                        // Don't forward! This prevents icon focus issues and duplicate typing
+                        // else: Click is on icon or other window - let Windows handle naturally
+                        // Don't forward! Prevents icon focus stealing and keyboard interference
                     }
                     else if (msg == WM_MOUSEWHEEL)
                     {
@@ -247,7 +251,9 @@ namespace WebPaper.Core
                 Log.Error(ex, "Mouse hook error");
             }
 
-            // ALWAYS call next hook
+            // IMPORTANT: Mouse events are NOT consumed - always pass through hook chain
+            // This allows Windows to handle icon clicks naturally via z-order
+            // Mouse events don't cause doubling because WebView2 deduplicates them
             return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
         }
 
@@ -272,10 +278,14 @@ namespace WebPaper.Core
                     // Parse keyboard event
                     int vkCode = Marshal.ReadInt32(lParam);
 
-                    // CRITICAL FIX: Always forward WM_KEYDOWN/WM_KEYUP (including repeats)
-                    // This allows backspace, arrows, etc. to repeat when held
-                    // The ForwardKeyboardEvent will intelligently handle WM_CHAR to prevent duplicates
+                    // Forward keyboard event to WebView2
                     ForwardKeyboardEvent(wParam, vkCode, lParam);
+
+                    // CRITICAL FIX: Consume the event to prevent double input!
+                    // Since we manually forwarded to WebView2, we must NOT let it also
+                    // propagate through the hook chain, or WebView2 receives it twice.
+                    // Return 1 to suppress the event from further processing.
+                    return new IntPtr(1);
                 }
             }
             catch (Exception ex)
@@ -283,6 +293,7 @@ namespace WebPaper.Core
                 Log.Error(ex, "Keyboard hook error");
             }
 
+            // If we didn't handle it, pass it along
             return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
         }
 
@@ -313,12 +324,14 @@ namespace WebPaper.Core
                 GetClassName(hwnd, className, className.Capacity);
                 string classNameStr = className.ToString();
 
-                // Desktop icons are in "SysListView32" window - need to forward these!
+                // Desktop icons are in "SysListView32" window
+                // With HWND_BOTTOM z-order, Windows routes clicks to icons naturally
+                // We don't forward these - let Windows handle icon interaction
                 if (classNameStr.Contains("SysListView32"))
                 {
-                    LogWindowClass(classNameStr, false, "Desktop icon list - will forward to icons");
+                    LogWindowClass(classNameStr, false, "Desktop icon list - let Windows handle naturally");
                     _lastDesktopIconWindow = hwnd; // Cache for future use
-                    return (false, hwnd); // Not wallpaper, but return icon window handle
+                    return (false, hwnd); // Not wallpaper - icon click
                 }
 
                 // CRITICAL FIX: Accept clicks on our OWN WebView2 window!
@@ -1048,13 +1061,13 @@ namespace WebPaper.Core
                     // This allows backspace, arrows, etc. to repeat when held
                     PostMessage(_inputHandle, msg, keyWParam, lParam);
 
-                    // CRITICAL FIX: For text input to work, we MUST send WM_CHAR messages!
+                    // CRITICAL: For text input to work, we MUST send WM_CHAR messages!
                     // WM_KEYDOWN/WM_KEYUP only send virtual key codes, but text input
                     // requires WM_CHAR with the actual character.
                     //
-                    // BUT: Only send WM_CHAR on the FIRST keydown (not on repeats)
-                    // This prevents the "hhheeeyyy" duplicate character issue
-                    if (msg == WM_KEYDOWN && !isRepeat)
+                    // Send WM_CHAR for both initial press AND repeats to allow text to repeat
+                    // (e.g., holding 'a' should type 'aaaa', holding backspace should delete continuously)
+                    if (msg == WM_KEYDOWN)
                     {
                         // Convert virtual key to character
                         char ch = VirtualKeyToChar((uint)vkCode);
