@@ -18,7 +18,7 @@
         <!-- Header -->
         <Grid Grid.Row="0" Padding="24,20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
             <StackPanel Spacing="4">
-                <TextBlock Text="⚙️ WebPaper Settings" FontSize="24" FontWeight="SemiBold"/>
+                <TextBlock Text="WebPaper Settings" FontSize="24" FontWeight="SemiBold"/>
                 <TextBlock x:Name="VersionText" Text="Version 1.0.0" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </StackPanel>
         </Grid>
@@ -62,7 +62,7 @@
                         <RadioButton Tag="WebPaper">
                             <RadioButton.Content>
                                 <StackPanel Spacing="4" Margin="0,4">
-                                    <TextBlock Text="🌐 WebPaper Control (Default)" FontWeight="SemiBold"/>
+                                    <TextBlock Text="WebPaper Control (Default)" FontWeight="SemiBold"/>
                                     <TextBlock Text="Interact with webpage - click, type, scroll. Desktop icons clickable with single-click (right-click to open)."
                                               TextWrapping="Wrap"
                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -74,7 +74,7 @@
                         <RadioButton Tag="Desktop" Margin="0,12,0,0">
                             <RadioButton.Content>
                                 <StackPanel Spacing="4" Margin="0,4">
-                                    <TextBlock Text="🖥️ Desktop Control" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Desktop Control" FontWeight="SemiBold"/>
                                     <TextBlock Text="Static wallpaper - no webpage interaction. All mouse and keyboard inputs go to Windows/desktop normally."
                                               TextWrapping="Wrap"
                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -147,21 +147,21 @@
                     </TextBlock>
 
                     <StackPanel Spacing="8" Margin="0,8,0,0">
-                        <HyperlinkButton Content="🌐 GitHub Repository"
+                        <HyperlinkButton Content="GitHub Repository"
                                         Click="GitHubButton_Click"
                                         Padding="0"/>
-                        <HyperlinkButton Content="🐛 Report a Bug"
+                        <HyperlinkButton Content="Report a Bug"
                                         Click="ReportBugButton_Click"
                                         Padding="0"/>
-                        <HyperlinkButton Content="💼 LinkedIn - Omprakash J"
+                        <HyperlinkButton Content="LinkedIn - Omprakash J"
                                         Click="LinkedInButton_Click"
                                         Padding="0"/>
                     </StackPanel>
 
                     <TextBlock Margin="0,12,0,0" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}">
-                        <Run Text="Made with ❤️ by MrDuck"/>
+                        <Run Text="Made with love by MrDuck"/>
                         <LineBreak/>
-                        <Run Text="📧 omprakashj2010@gmail.com"/>
+                        <Run Text="Email: omprakashj2010@gmail.com"/>
                     </TextBlock>
                 </StackPanel>
 
