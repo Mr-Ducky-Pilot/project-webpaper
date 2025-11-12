@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Windowing;
 using System;
 using System.Threading.Tasks;
+using Serilog;
 using WebPaper.Models;
 using WebPaper.Services;
 using Windows.Graphics;
@@ -84,7 +85,7 @@ namespace WebPaper
             catch (Exception ex)
             {
                 StatusText.Text = $"Error loading settings: {ex.Message}";
-                Console.WriteLine($"SettingsWindow: Error loading settings - {ex.Message}");
+                Log.Error(ex, "Error loading settings");
             }
         }
 
@@ -311,7 +312,7 @@ namespace WebPaper
             catch (Exception ex)
             {
                 StatusText.Text = $"Error saving settings: {ex.Message}";
-                Console.WriteLine($"SettingsWindow: Error saving - {ex.Message}");
+                Log.Error(ex, "Error saving settings");
             }
         }
 

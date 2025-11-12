@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
+using Serilog;
 using WebPaper.Core;
 using WebPaper.Native;
 using static WebPaper.Native.NativeMethods;
@@ -61,7 +62,7 @@ namespace WebPaper.Services
                 TimeSpan.FromMilliseconds(_checkIntervalMs)
             );
 
-            Console.WriteLine("PerformanceManager: Initialized and monitoring started");
+            Log.Information("PerformanceManager initialized and monitoring started");
         }
 
         private async void MonitoringCallback(object? state)
@@ -72,7 +73,7 @@ namespace WebPaper.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"PerformanceManager ERROR: Monitoring failed - {ex.Message}");
+                Log.Error(ex, "PerformanceManager monitoring failed");
             }
         }
 
@@ -247,21 +248,21 @@ namespace WebPaper.Services
                         _pauseCount++;
                         _pausedAt = DateTime.Now;
 
-                        Console.WriteLine($"PerformanceManager: Paused rendering - {reason}");
+                        Log.Information("Paused rendering - {Reason}", reason);
                         WallpaperPaused?.Invoke(this, reason);
 
                         tcs.SetResult(true);
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"PerformanceManager ERROR: Failed to pause - {ex.Message}");
+                        Log.Error(ex, "Failed to pause rendering");
                         tcs.SetException(ex);
                     }
                 });
 
                 if (!enqueued)
                 {
-                    Console.WriteLine($"PerformanceManager ERROR: Failed to enqueue pause operation to UI thread");
+                    Log.Error("Failed to enqueue pause operation to UI thread");
                     return;
                 }
 
@@ -270,7 +271,7 @@ namespace WebPaper.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"PerformanceManager ERROR: Failed to pause - {ex.Message}");
+                Log.Error(ex, "Failed to pause rendering");
             }
         }
 
@@ -302,12 +303,12 @@ namespace WebPaper.Services
                     _pausedAt = null;
                 }
 
-                Console.WriteLine("PerformanceManager: Resumed rendering");
+                Log.Information("Resumed rendering");
                 WallpaperResumed?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"PerformanceManager ERROR: Failed to resume - {ex.Message}");
+                Log.Error(ex, "Failed to resume rendering");
             }
         }
 
@@ -347,7 +348,7 @@ namespace WebPaper.Services
                 _webView = null;
                 _disposed = true;
 
-                Console.WriteLine("PerformanceManager: Disposed");
+                Log.Information("PerformanceManager disposed");
             }
         }
     }

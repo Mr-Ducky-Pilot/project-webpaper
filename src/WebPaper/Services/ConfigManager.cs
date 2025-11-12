@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Serilog;
 using WebPaper.Models;
 
 namespace WebPaper.Services
@@ -35,38 +36,37 @@ namespace WebPaper.Services
             {
                 if (!File.Exists(_configFilePath))
                 {
-                    Console.WriteLine("Config file not found. Creating default configuration...");
+                    Log.Information("Config file not found, creating default configuration");
                     var defaultConfig = AppConfig.CreateDefault();
                     await SaveConfigAsync(defaultConfig);
                     _currentConfig = defaultConfig;
                     return defaultConfig;
                 }
 
-                Console.WriteLine($"Loading config from: {_configFilePath}");
+                Log.Information("Loading config from: {ConfigFilePath}", _configFilePath);
 
                 var json = await File.ReadAllTextAsync(_configFilePath);
                 var config = JsonSerializer.Deserialize<AppConfig>(json);
 
                 if (config == null)
                 {
-                    Console.WriteLine("ERROR: Failed to deserialize config. Using default.");
+                    Log.Error("Failed to deserialize config, using default");
                     config = AppConfig.CreateDefault();
                 }
                 else if (!config.Validate())
                 {
-                    Console.WriteLine("WARNING: Config validation failed. Using default.");
+                    Log.Warning("Config validation failed, using default");
                     config = AppConfig.CreateDefault();
                 }
 
                 _currentConfig = config;
-                Console.WriteLine($"Config loaded successfully. URL: {config.WallpaperUrl}");
+                Log.Information("Config loaded successfully. URL: {WallpaperUrl}", config.WallpaperUrl);
 
                 return config;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR loading config: {ex.Message}");
-                Console.WriteLine("Using default configuration.");
+                Log.Error(ex, "Error loading config, using default configuration");
                 var defaultConfig = AppConfig.CreateDefault();
                 _currentConfig = defaultConfig;
                 return defaultConfig;
@@ -85,7 +85,7 @@ namespace WebPaper.Services
                     throw new ArgumentException("Invalid configuration");
                 }
 
-                Console.WriteLine($"Saving config to: {_configFilePath}");
+                Log.Information("Saving config to: {ConfigFilePath}", _configFilePath);
 
                 var options = new JsonSerializerOptions
                 {
@@ -96,11 +96,11 @@ namespace WebPaper.Services
                 await File.WriteAllTextAsync(_configFilePath, json);
 
                 _currentConfig = config;
-                Console.WriteLine("Config saved successfully.");
+                Log.Information("Config saved successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR saving config: {ex.Message}");
+                Log.Error(ex, "Error saving config");
                 throw;
             }
         }
@@ -164,7 +164,7 @@ namespace WebPaper.Services
         /// </summary>
         public async Task ResetToDefaultAsync()
         {
-            Console.WriteLine("Resetting configuration to default...");
+            Log.Information("Resetting configuration to default");
             var defaultConfig = AppConfig.CreateDefault();
             await SaveConfigAsync(defaultConfig);
         }

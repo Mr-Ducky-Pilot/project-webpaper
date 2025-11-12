@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using System.Threading;
+using Serilog;
 using WebPaper.Native;
 using static WebPaper.Native.NativeMethods;
 
@@ -183,18 +184,18 @@ namespace WebPaper.Core
         /// </summary>
         public static void DebugEnumerateWindows()
         {
-            Console.WriteLine("=== Enumerating Top-Level Windows ===");
+            Log.Information("=== Enumerating Top-Level Windows ===");
             EnumWindows((hWnd, lParam) =>
             {
                 if (IsWindowVisible(hWnd))
                 {
                     string className = GetWindowClassName(hWnd);
                     GetWindowRect(hWnd, out RECT rect);
-                    Console.WriteLine($"Window: {hWnd:X8} | Class: {className,-30} | Rect: {rect}");
+                    Log.Information("Window: {WindowHandle:X8} | Class: {ClassName,-30} | Rect: {Rect}", hWnd, className, rect);
                 }
                 return true;
             }, IntPtr.Zero);
-            Console.WriteLine("=== End Enumeration ===");
+            Log.Information("=== End Enumeration ===");
         }
     }
 }

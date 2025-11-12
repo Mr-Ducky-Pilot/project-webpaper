@@ -4,6 +4,7 @@ using Microsoft.UI.Windowing;
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using Serilog;
 using Windows.Graphics;
 using WinRT.Interop;
 
@@ -107,7 +108,7 @@ namespace WebPaper
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error opening URL: {ex.Message}");
+                Log.Error(ex, "Error opening URL");
             }
         }
     }

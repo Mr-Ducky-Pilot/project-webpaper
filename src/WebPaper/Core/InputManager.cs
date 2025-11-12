@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
+using Serilog;
 using WebPaper.Models;
 using WebPaper.Native;
 using static WebPaper.Native.NativeMethods;
@@ -58,7 +59,7 @@ namespace WebPaper.Core
                 if (_isEnabled != value)
                 {
                     _isEnabled = value;
-                    Console.WriteLine($"InputManager: Forwarding {(_isEnabled ? "ENABLED" : "DISABLED")}");
+                    Log.Information("Input forwarding {Status}", _isEnabled ? "enabled" : "disabled");
                 }
             }
         }
@@ -75,40 +76,27 @@ namespace WebPaper.Core
         {
             if (HooksInstalled)
             {
-                Console.WriteLine("InputManager: Hooks already installed");
+                Log.Warning("Input hooks already installed, skipping");
                 return;
             }
 
             _webView = webView ?? throw new ArgumentNullException(nameof(webView));
             _webViewHandle = webViewHandle;
-            _mainWindowHandle = mainWindowHandle; // CRITICAL: We need the main window to control focus
-            _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue)); // CRITICAL: For UI thread marshaling
+            _mainWindowHandle = mainWindowHandle;
+            _dispatcherQueue = dispatcherQueue ?? throw new ArgumentNullException(nameof(dispatcherQueue));
 
             // Try to find Chrome_WidgetWin_1 for optimal input forwarding
-            // WebView2 window hierarchy: Chrome_RenderWidgetHostHWND -> Chrome_WidgetWin_0 -> Chrome_WidgetWin_1
-            // Note: Fallback to top-level window works fine in most cases
             _inputHandle = FindWebView2InputHandle(webViewHandle);
             if (_inputHandle == IntPtr.Zero)
             {
-                // Fallback to main WebView handle - this works correctly for input
                 _inputHandle = webViewHandle;
-                Console.WriteLine($"InputManager: Using main WebView handle for input: 0x{_inputHandle:X8}");
-            }
-            else
-            {
-                Console.WriteLine($"InputManager: Using Chrome_WidgetWin_1 for input: 0x{_inputHandle:X8}");
             }
 
-            // CRITICAL FIX: Find desktop icon window (SysListView32) for click forwarding
-            // Our wallpaper blocks WindowFromPoint(), so we cache the icon window handle
+            // Find desktop icon window (SysListView32) for proper z-order handling
             _desktopIconWindow = FindDesktopIconWindow();
-            if (_desktopIconWindow != IntPtr.Zero)
+            if (_desktopIconWindow == IntPtr.Zero)
             {
-                Console.WriteLine($"InputManager: Found desktop icon window (SysListView32): 0x{_desktopIconWindow:X8}");
-            }
-            else
-            {
-                Console.WriteLine("InputManager: WARNING - Could not find desktop icon window (SysListView32)");
+                Log.Warning("Could not find desktop icon window (SysListView32)");
             }
 
             try
@@ -148,13 +136,11 @@ namespace WebPaper.Core
                 }
 
                 _isEnabled = true;
-                Console.WriteLine("InputManager: Hooks installed successfully");
-                Console.WriteLine($"  Mouse Hook: 0x{_mouseHookId:X8}");
-                Console.WriteLine($"  Keyboard Hook: 0x{_keyboardHookId:X8}");
+                Log.Information("Input hooks installed successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager ERROR: Failed to install hooks - {ex.Message}");
+                Log.Error(ex, "Failed to install input hooks");
                 UninstallHooks();
                 throw;
             }
@@ -178,7 +164,7 @@ namespace WebPaper.Core
             }
 
             _isEnabled = false;
-            Console.WriteLine("InputManager: Hooks uninstalled");
+            Log.Information("Input hooks uninstalled");
         }
 
         /// <summary>
@@ -215,8 +201,7 @@ namespace WebPaper.Core
                     // Handle clicks for desktop interaction
                     if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK)
                     {
-                        Console.WriteLine($"InputManager: {GetMouseEventName(msg)} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
-                            $"OnWallpaper: {isOverWallpaper}");
+                        // Removed verbose mouse click logging - check log file for errors only
 
                         // CRITICAL FIX: Only forward clicks that are actually on our wallpaper
                         // With HWND_BOTTOM set, desktop icons are on top in Z-order
@@ -239,10 +224,7 @@ namespace WebPaper.Core
                         TimeSpan timeSinceOverWallpaper = DateTime.Now - _lastMouseOverWallpaperTime;
                         bool shouldForwardScroll = timeSinceOverWallpaper.TotalSeconds < 2.0;
 
-                        // ALWAYS log scroll events to help diagnose trackpad issues
-                        short wheelDelta = (short)((hookStruct.mouseData >> 16) & 0xFFFF);
-                        Console.WriteLine($"InputManager: WM_MOUSEWHEEL delta={wheelDelta} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
-                            $"timeSinceOver={timeSinceOverWallpaper.TotalMilliseconds:F0}ms, forward={shouldForwardScroll}");
+                        // Process scroll event based on recent wallpaper interaction
 
                         if (shouldForwardScroll)
                         {
@@ -262,7 +244,7 @@ namespace WebPaper.Core
             catch (Exception ex)
             {
                 // Never throw from hook - would cause hook to be removed
-                Console.WriteLine($"InputManager: Mouse hook error - {ex.Message}");
+                Log.Error(ex, "Mouse hook error");
             }
 
             // ALWAYS call next hook
@@ -298,7 +280,7 @@ namespace WebPaper.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: Keyboard hook error - {ex.Message}");
+                Log.Error(ex, "Keyboard hook error");
             }
 
             return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
@@ -363,7 +345,7 @@ namespace WebPaper.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: GetClickTarget error - {ex.Message}");
+                Log.Error(ex, "GetClickTarget error");
                 return (false, IntPtr.Zero);
             }
         }
@@ -385,7 +367,7 @@ namespace WebPaper.Core
             // Only log if class changed or it's been >5 seconds
             if (className != _lastLoggedClass || (DateTime.Now - _lastClassLogTime).TotalSeconds > 5)
             {
-                Console.WriteLine($"InputManager: WindowFromPoint = '{className}' -> {(willForward ? "FORWARD" : "REJECT")} ({reason})");
+                // Removed verbose debug logging - check log file for errors only
                 _lastLoggedClass = className;
                 _lastClassLogTime = DateTime.Now;
             }
@@ -438,7 +420,7 @@ namespace WebPaper.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: Error finding desktop icon window - {ex.Message}");
+                Log.Error(ex, "Error finding desktop icon window");
                 return IntPtr.Zero;
             }
         }
@@ -493,7 +475,7 @@ namespace WebPaper.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: Error finding input handle - {ex.Message}");
+                Log.Error(ex, "Error finding input handle");
                 return IntPtr.Zero;
             }
         }
@@ -514,7 +496,6 @@ namespace WebPaper.Core
                 IntPtr chromeWidgetWin1 = FindWindowEx(chromeWidgetWin0, IntPtr.Zero, "Chrome_WidgetWin_1", null);
                 if (chromeWidgetWin1 != IntPtr.Zero)
                 {
-                    Console.WriteLine($"InputManager: Found at depth {depth}: Chrome_WidgetWin_1 = 0x{chromeWidgetWin1:X8}");
                     return chromeWidgetWin1;
                 }
             }
@@ -540,30 +521,8 @@ namespace WebPaper.Core
         /// </summary>
         private void EnumerateChildWindows(IntPtr parent, int indent)
         {
-            IntPtr child = IntPtr.Zero;
-            int count = 0;
-            string indentStr = new string(' ', indent * 2);
-
-            while (true)
-            {
-                child = FindWindowEx(parent, child, null, null);
-                if (child == IntPtr.Zero)
-                    break;
-
-                StringBuilder className = new StringBuilder(256);
-                GetClassName(child, className, className.Capacity);
-                Console.WriteLine($"{indentStr}  Child {count}: {className} (0x{child:X8})");
-                count++;
-
-                if (count > 20) // Prevent spam
-                {
-                    Console.WriteLine($"{indentStr}  ... (more children not shown)");
-                    break;
-                }
-            }
-
-            if (count == 0)
-                Console.WriteLine($"{indentStr}  (no children)");
+            // Debug method - not used in production
+            // Removed verbose console output
         }
 
         /// <summary>
@@ -581,7 +540,7 @@ namespace WebPaper.Core
                 _eventCount++;
                 if ((DateTime.Now - _lastEventTime).TotalSeconds >= 5)
                 {
-                    Console.WriteLine($"InputManager: ~{_eventCount / 5} events/sec");
+                    // Removed verbose performance logging
                     _eventCount = 0;
                     _lastEventTime = DateTime.Now;
                 }
@@ -610,12 +569,6 @@ namespace WebPaper.Core
                         // For WM_MOUSEWHEEL, lParam should be in SCREEN coordinates, not client
                         IntPtr scrollLParam = MakeLParam(pt.X, pt.Y);
 
-                        // Log scroll events (occasionally)
-                        if (_eventCount % 10 == 0) // Log every 10th scroll event to reduce spam
-                        {
-                            Console.WriteLine($"InputManager: SCROLL delta={wheelDelta} at screen({pt.X},{pt.Y})");
-                        }
-
                         // Send scroll message
                         PostMessage(_inputHandle, msg, scrollWParam, scrollLParam);
                     }
@@ -630,13 +583,6 @@ namespace WebPaper.Core
                         IntPtr lParam = MakeLParam(clientPt.X, clientPt.Y);
                         IntPtr mouseWParam = MakeMouseWParam(hookStruct);
 
-                        // For clicks, log the action
-                        if (msg == WM_LBUTTONDOWN)
-                        {
-                            Console.WriteLine($"InputManager: LCLICK at screen({pt.X},{pt.Y}) -> client({clientPt.X},{clientPt.Y})");
-                            Console.WriteLine($"  Forwarding to Chrome_WidgetWin_1 via PostMessage");
-                        }
-
                         // Forward the message using PostMessage (works because we're using the correct child window!)
                         PostMessage(_inputHandle, msg, mouseWParam, lParam);
                     }
@@ -649,7 +595,7 @@ namespace WebPaper.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: Failed to forward mouse event - {ex.Message}");
+                Log.Error(ex, "Failed to forward mouse event");
             }
         }
 
@@ -671,9 +617,6 @@ namespace WebPaper.Core
                 // Build wParam with mouse button state
                 IntPtr mouseWParam = IntPtr.Zero; // Desktop icons don't need button state in wParam
 
-                Console.WriteLine($"InputManager: Forwarding {GetMouseEventName(msg)} to desktop icons at " +
-                    $"screen({hookStruct.pt.X},{hookStruct.pt.Y}) -> client({clientPt.X},{clientPt.Y})");
-
                 // Send the message to the icon window
                 // Use SendMessage for clicks (synchronous) to ensure proper event ordering
                 SendMessage(iconWindow, msg, mouseWParam, lParam);
@@ -691,7 +634,7 @@ namespace WebPaper.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: Failed to forward to desktop icons - {ex.Message}");
+                Log.Error(ex, "Failed to forward to desktop icons");
             }
         }
 
@@ -728,13 +671,13 @@ namespace WebPaper.Core
             {
                 if (_webView == null)
                 {
-                    Console.WriteLine("  ERROR: _webView is null!");
+                    Log.Error("SimulateClickViaJavaScript: _webView is null");
                     return;
                 }
 
                 if (_dispatcherQueue == null)
                 {
-                    Console.WriteLine("  ERROR: _dispatcherQueue is null! Cannot marshal to UI thread.");
+                    Log.Error("SimulateClickViaJavaScript: _dispatcherQueue is null - cannot marshal to UI thread");
                     return;
                 }
 
@@ -927,8 +870,6 @@ namespace WebPaper.Core
                     }})();
                 ";
 
-                Console.WriteLine($"  Marshaling JavaScript execution to UI thread...");
-
                 // CRITICAL FIX: Use DispatcherQueue.TryEnqueue to execute on UI thread
                 // This is the WinUI 3 / Windows App SDK way to marshal calls to UI thread
                 // WebView2 COM objects require UI thread affinity (STA threading model)
@@ -936,29 +877,22 @@ namespace WebPaper.Core
                 {
                     try
                     {
-                        Console.WriteLine($"  Executing JavaScript on UI thread...");
-                        var result = await _webView.ExecuteScriptAsync(script);
-                        Console.WriteLine($"  JavaScript result: {result}");
+                        await _webView.ExecuteScriptAsync(script);
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"  JavaScript execution FAILED: {ex.Message}");
-                        Console.WriteLine($"  Exception type: {ex.GetType().Name}");
-                        if (ex.StackTrace != null)
-                        {
-                            Console.WriteLine($"  Stack: {ex.StackTrace}");
-                        }
+                        Log.Error(ex, "JavaScript execution failed in SimulateClickViaJavaScript");
                     }
                 });
 
                 if (!enqueued)
                 {
-                    Console.WriteLine($"  ERROR: Failed to enqueue JavaScript execution to UI thread!");
+                    Log.Error("Failed to enqueue JavaScript execution to UI thread");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: SimulateClickViaJavaScript failed - {ex.Message}");
+                Log.Error(ex, "SimulateClickViaJavaScript failed");
             }
         }
 
@@ -1080,32 +1014,13 @@ namespace WebPaper.Core
                 // Debug logging (only on first click to avoid spam)
                 if (!_firstFocusLogged)
                 {
-                    Console.WriteLine($"InputManager: AcquireWebViewFocus() - Modern Approach (2024)");
-                    Console.WriteLine($"  SetForegroundWindow(_mainWindowHandle=0x{_mainWindowHandle:X8}) = {foregroundSet}");
-                    Console.WriteLine($"  WebView2 Handle: 0x{_webViewHandle:X8}");
-                    Console.WriteLine($"  Input Child Window: 0x{inputChild:X8}");
-                    Console.WriteLine($"  Focus Target: 0x{focusTarget:X8}");
-                    Console.WriteLine($"  SetFocus() = 0x{focusResult:X8}");
-                    if (focusResult == IntPtr.Zero)
-                    {
-                        uint error = GetLastError();
-                        Console.WriteLine($"  WARNING: SetFocus failed! Error: {error}");
-                        Console.WriteLine($"  Trying to focus WebView2 directly as fallback...");
-
-                        // Fallback: Try focusing the WebView2 handle directly
-                        IntPtr fallbackFocus = SetFocus(_webViewHandle);
-                        Console.WriteLine($"  Fallback SetFocus(_webViewHandle) = 0x{fallbackFocus:X8}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"  SUCCESS: WebView2 should now have focus!");
-                    }
+                    // Removed verbose focus debugging - check log file for errors only
                     _firstFocusLogged = true;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: AcquireWebViewFocus failed - {ex.Message}");
+                Log.Error(ex, "AcquireWebViewFocus failed");
             }
         }
 
@@ -1148,19 +1063,13 @@ namespace WebPaper.Core
                             // Send WM_CHAR message with the character
                             IntPtr charWParam = new IntPtr(ch);
                             PostMessage(_inputHandle, WM_CHAR, charWParam, IntPtr.Zero);
-
-                            // Log for debugging (only occasionally to avoid spam)
-                            if (char.IsLetterOrDigit(ch) || char.IsPunctuation(ch) || ch == ' ')
-                            {
-                                Console.WriteLine($"InputManager: Sent WM_CHAR for '{ch}' (0x{(int)ch:X2})");
-                            }
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: Failed to forward keyboard event - {ex.Message}");
+                Log.Error(ex, "Failed to forward keyboard event");
             }
         }
 
@@ -1241,22 +1150,7 @@ namespace WebPaper.Core
         /// </summary>
         private void LogMouseEvent(uint msg, POINT pt)
         {
-            string eventName = msg switch
-            {
-                WM_MOUSEMOVE => "MOVE",
-                WM_LBUTTONDOWN => "LDOWN",
-                WM_LBUTTONUP => "LUP",
-                WM_RBUTTONDOWN => "RDOWN",
-                WM_RBUTTONUP => "RUP",
-                WM_MOUSEWHEEL => "WHEEL",
-                _ => $"0x{msg:X4}"
-            };
-
-            // Only log non-move events to avoid spam
-            if (msg != WM_MOUSEMOVE)
-            {
-                Console.WriteLine($"Mouse {eventName} at ({pt.X}, {pt.Y})");
-            }
+            // Removed verbose mouse event logging - check log file for errors only
         }
 
         /// <summary>

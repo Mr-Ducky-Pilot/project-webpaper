@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Serilog;
 using WebPaper.Models;
 using CoreWebView2 = Microsoft.Web.WebView2.Core.CoreWebView2;
 using CoreWebView2Cookie = Microsoft.Web.WebView2.Core.CoreWebView2Cookie;
@@ -45,7 +46,7 @@ namespace WebPaper.Services
         {
             try
             {
-                Console.WriteLine("CookieManager: Saving cookies...");
+                Log.Information("Saving cookies");
 
                 var cookieManager = webView.CookieManager;
                 var allCookies = await cookieManager.GetCookiesAsync(currentUrl);
@@ -95,11 +96,11 @@ namespace WebPaper.Services
                 // Save to file
                 await File.WriteAllBytesAsync(_cookieStorePath, encryptedBytes);
 
-                Console.WriteLine($"CookieManager: Saved {serializableCookies.Count} cookies");
+                Log.Information("Saved {CookieCount} cookies", serializableCookies.Count);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"CookieManager ERROR: Failed to save cookies - {ex.Message}");
+                Log.Error(ex, "Failed to save cookies");
                 throw;
             }
         }
@@ -113,11 +114,11 @@ namespace WebPaper.Services
             {
                 if (!File.Exists(_cookieStorePath))
                 {
-                    Console.WriteLine("CookieManager: No saved cookies found");
+                    Log.Information("No saved cookies found");
                     return false;
                 }
 
-                Console.WriteLine("CookieManager: Loading cookies...");
+                Log.Information("Loading cookies");
 
                 // Read encrypted file
                 var encryptedBytes = await File.ReadAllBytesAsync(_cookieStorePath);
@@ -135,7 +136,7 @@ namespace WebPaper.Services
 
                 if (container == null || container.Cookies == null)
                 {
-                    Console.WriteLine("CookieManager: Invalid cookie data");
+                    Log.Warning("Invalid cookie data");
                     return false;
                 }
 
@@ -143,7 +144,7 @@ namespace WebPaper.Services
                 var age = DateTime.UtcNow - container.SavedAt;
                 if (age.TotalDays > 30)
                 {
-                    Console.WriteLine($"CookieManager: Cookies are {age.TotalDays:F0} days old, discarding");
+                    Log.Information("Cookies are {Days:F0} days old, discarding", age.TotalDays);
                     File.Delete(_cookieStorePath);
                     return false;
                 }
@@ -178,18 +179,18 @@ namespace WebPaper.Services
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"CookieManager: Failed to restore cookie {cookieData.Name} - {ex.Message}");
+                        Log.Error(ex, "Failed to restore cookie {CookieName}", cookieData.Name);
                     }
                 }
 
-                Console.WriteLine($"CookieManager: Restored {restoredCount}/{container.Cookies.Count} cookies");
-                Console.WriteLine($"CookieManager: Cookies were saved at {container.SavedAt:yyyy-MM-dd HH:mm:ss} UTC");
+                Log.Information("Restored {RestoredCount}/{TotalCount} cookies", restoredCount, container.Cookies.Count);
+                Log.Information("Cookies were saved at {SavedAt:yyyy-MM-dd HH:mm:ss} UTC", container.SavedAt);
 
                 return restoredCount > 0;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"CookieManager ERROR: Failed to restore cookies - {ex.Message}");
+                Log.Error(ex, "Failed to restore cookies");
                 return false;
             }
         }
@@ -204,12 +205,12 @@ namespace WebPaper.Services
                 if (File.Exists(_cookieStorePath))
                 {
                     File.Delete(_cookieStorePath);
-                    Console.WriteLine("CookieManager: Cleared saved cookies");
+                    Log.Information("Cleared saved cookies");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"CookieManager ERROR: Failed to clear cookies - {ex.Message}");
+                Log.Error(ex, "Failed to clear cookies");
             }
         }
 

@@ -109,69 +109,40 @@ namespace WebPaper
                 Log.Information("Waiting for window to be fully loaded...");
                 await Task.Delay(250); // Give UI thread time to complete window initialization
 
-                // Step 0: Load configuration
-                Log.Information("Step 0: Loading configuration...");
                 LoadingStatusText.Text = "Loading configuration...";
                 await LoadConfiguration();
-                Log.Information("Step 0: Configuration loaded");
-
-                // Step 1: Initialize system tray
-                Log.Information("Step 1: Initializing system tray...");
+                Log.Information("Configuration loaded successfully");
                 LoadingStatusText.Text = "Setting up system tray...";
                 InitializeTrayIcon();
-                Log.Information("Step 1: System tray initialized");
 
-                // Step 2: Initialize CookieManager
-                Log.Information("Step 2: Initializing CookieManager...");
                 LoadingStatusText.Text = "Initializing cookie manager...";
                 _cookieManager = new Services.CookieManager();
-                Log.Information("Step 2: CookieManager initialized");
 
-                // Step 3: Initialize WebView2
-                Log.Information("Step 3: Initializing WebView2...");
                 LoadingStatusText.Text = "Initializing web browser...";
                 await InitializeWebView2();
-                Log.Information("Step 3: WebView2 initialized");
 
-                // Step 4: Restore saved cookies (if any)
-                Log.Information("Step 4: Restoring saved cookies...");
                 LoadingStatusText.Text = "Restoring saved sessions...";
                 await RestoreSavedCookies();
-                Log.Information("Step 4: Cookies restored");
 
-                // Step 5: Attach to desktop using WorkerW
-                Log.Information("Step 5: Attaching to desktop...");
                 LoadingStatusText.Text = "Attaching to desktop...";
                 AttachToDesktop();
-                Log.Information("Step 5: Attached to desktop");
 
-                // Step 6: Install input hooks for interactivity
-                Log.Information("Step 6: Installing input hooks...");
                 LoadingStatusText.Text = "Setting up interactivity...";
                 await InstallInputHooks();
-                Log.Information("Step 6: Input hooks installed");
 
-                // Step 7: Initialize performance monitoring
-                Log.Information("Step 7: Initializing performance manager...");
                 LoadingStatusText.Text = "Optimizing performance...";
                 InitializePerformanceManager();
-                Log.Information("Step 7: Performance manager initialized");
 
-                // Step 8: Check if first run and show welcome
-                Log.Information("Step 8: Checking first run...");
+                // Check if first run and show welcome
                 LoadingStatusText.Text = "Almost ready...";
                 await CheckFirstRun();
-                Log.Information("Step 8: First run check complete");
 
                 // Hide loading panel
-                Log.Information("Step 9: Hiding loading panel...");
                 LoadingPanel.Visibility = Visibility.Collapsed;
 
                 Log.Information("=== WebPaper Initialization Complete ===");
-                Log.Information($"Wallpaper URL: {_config?.WallpaperUrl}");
-                Log.Information("Wallpaper is now fully interactive!");
-                Log.Information("Try clicking, typing, and scrolling on the webpage.");
-                Log.Information("Right-click for options or check system tray icon.");
+                Log.Information("Wallpaper URL: {Url}", _config?.WallpaperUrl ?? "default");
+                Log.Information("Wallpaper is now fully interactive");
             }
             catch (Exception ex)
             {
@@ -184,7 +155,7 @@ namespace WebPaper
         {
             try
             {
-                Log.Information("Step 3.1: Initializing WebView2...");
+                Log.Information("Initializing WebView2...");
 
                 // Set up WebView2 environment with custom user data folder
                 var userDataFolder = System.IO.Path.Combine(
@@ -193,54 +164,42 @@ namespace WebPaper
                     "WebView2Data"
                 );
 
-                Log.Information($"Step 3.2: WebView2 user data folder: {userDataFolder}");
-
                 // Create environment
-                Log.Information("Step 3.3: Creating WebView2 environment...");
                 var environment = await CoreWebView2Environment.CreateWithOptionsAsync(
                     null,           // browserExecutableFolder (null = use installed runtime)
                     userDataFolder, // userDataFolder
                     null            // options (null = use defaults)
                 );
 
-                Log.Information("Step 3.4: WebView2 environment created successfully");
-
                 // CRITICAL FIX: Give WebView2 control time to be fully loaded in visual tree
                 // This prevents async deadlock on UI thread
-                Log.Information("Step 3.5a: Waiting for WebView2 control to be ready in visual tree...");
                 await Task.Delay(100); // Small delay to ensure control is loaded
 
                 // Force a UI update to ensure WebView2 is in the visual tree
-                Log.Information("Step 3.5b: Forcing UI dispatcher queue to process pending operations...");
                 var tcs = new TaskCompletionSource<bool>();
                 webView.DispatcherQueue.TryEnqueue(() => tcs.SetResult(true));
                 await tcs.Task;
 
                 // Initialize WebView2
-                Log.Information("Step 3.5c: Ensuring CoreWebView2 (this may take a moment)...");
                 await webView.EnsureCoreWebView2Async(environment);
 
-                Log.Information("Step 3.6: CoreWebView2 initialized successfully");
-
                 // Configure WebView2 settings
-                Log.Information("Step 3.7: Configuring WebView2 settings...");
-                webView.CoreWebView2.Settings.AreDevToolsEnabled = true; // Enable for debugging
+                webView.CoreWebView2.Settings.AreDevToolsEnabled = false; // Disabled in production
                 webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
                 webView.CoreWebView2.Settings.IsSwipeNavigationEnabled = false;
                 webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
 
                 // Subscribe to navigation events
-                Log.Information("Step 3.8: Subscribing to navigation events...");
                 webView.CoreWebView2.NavigationCompleted += WebView_NavigationCompleted;
                 webView.CoreWebView2.NavigationStarting += WebView_NavigationStarting;
 
                 // Navigate to configured URL
                 var url = _config?.WallpaperUrl ?? "https://blink42.com";
-                Log.Information($"Step 3.9: Navigating to: {url}");
+                Log.Information("Navigating to: {Url}", url);
                 webView.CoreWebView2.Navigate(url);
 
-                Log.Information("Step 3.10: WebView2 initialization complete");
+                Log.Information("WebView2 initialization complete");
             }
             catch (Exception ex)
             {
@@ -253,16 +212,11 @@ namespace WebPaper
         {
             try
             {
-                Log.Information($"Step 5.1: Preparing window for desktop attachment...");
-                Log.Information($"Window handle: 0x{_windowHandle:X8}");
+                Log.Information("Attaching window to desktop...");
 
                 // CRITICAL: Set window styles BEFORE attaching to WorkerW
-                // Remove caption, borders, and set as child window
-                Log.Information("Step 5.2: Removing window decorations (title bar, borders, buttons)...");
-
                 // Get current window style
                 int currentStyle = Native.NativeMethods.GetWindowLong(_windowHandle, Native.NativeMethods.GWL_STYLE);
-                Log.Information($"Current window style: 0x{currentStyle:X8}");
 
                 // CRITICAL: Must set WS_CHILD BEFORE calling SetParent
                 // Remove: WS_CAPTION, WS_THICKFRAME, WS_SYSMENU, WS_BORDER, WS_DLGFRAME
@@ -283,19 +237,14 @@ namespace WebPaper
                                  Native.NativeMethods.WS_CLIPSIBLINGS);
 
                 Native.NativeMethods.SetWindowLong(_windowHandle, Native.NativeMethods.GWL_STYLE, newStyle);
-                Log.Information($"New window style (with WS_CHILD): 0x{newStyle:X8}");
 
                 // CRITICAL FIX: Do NOT set WS_EX_NOACTIVATE!
                 // That flag prevents the window from ever receiving focus, which breaks WebView2 input.
-                // We need the window to be able to receive focus for input to work.
                 int currentExStyle = Native.NativeMethods.GetWindowLong(_windowHandle, Native.NativeMethods.GWL_EXSTYLE);
-                // Remove WS_EX_NOACTIVATE if it exists
                 int newExStyle = currentExStyle & ~(int)Native.NativeMethods.WS_EX_NOACTIVATE;
                 Native.NativeMethods.SetWindowLong(_windowHandle, Native.NativeMethods.GWL_EXSTYLE, newExStyle);
-                Log.Information($"Extended window style (WS_EX_NOACTIVATE removed): 0x{newExStyle:X8}");
 
                 // Force the window to update with new styles
-                Log.Information("Step 5.3: Applying window style changes...");
                 Native.NativeMethods.SetWindowPos(
                     _windowHandle,
                     IntPtr.Zero,
@@ -306,73 +255,55 @@ namespace WebPaper
                     Native.NativeMethods.SetWindowPosFlags.SWP_FRAMECHANGED
                 );
 
-                // Create WorkerW manager
-                Log.Information("Step 5.4: Finding or creating WorkerW window...");
+                // Create WorkerW manager and find/create WorkerW window
                 _workerWManager = new WorkerWManager();
-
-                // Find or create WorkerW window
                 var workerW = _workerWManager.FindOrCreateWorkerW();
-                Log.Information($"WorkerW handle: 0x{workerW:X8}");
 
                 // Attach our window to desktop (sets as child of WorkerW)
-                Log.Information("Step 5.5: Setting window as child of WorkerW...");
                 _workerWManager.AttachWindowToDesktop(_windowHandle);
 
                 // Verify attachment
                 IntPtr parent = Native.NativeMethods.GetParent(_windowHandle);
-                Log.Information($"Window parent after attachment: 0x{parent:X8}");
 
-                if (parent == workerW)
+                if (parent != workerW)
                 {
-                    Log.Information("✓ Window successfully attached to WorkerW!");
-                }
-                else if (parent == IntPtr.Zero)
-                {
-                    Log.Error($"✗ CRITICAL: SetParent FAILED! Window parent is NULL (0x00000000)");
-                    Log.Error($"  Expected WorkerW: 0x{workerW:X8}");
-                    Log.Error($"  This means the window is not attached to desktop!");
-                    Log.Error($"  Attempting to re-attach with error checking...");
-
-                    // Try again with explicit error checking
-                    IntPtr result = Native.NativeMethods.SetParent(_windowHandle, workerW);
-                    if (result == IntPtr.Zero)
+                    if (parent == IntPtr.Zero)
                     {
-                        uint error = Native.NativeMethods.GetLastError();
-                        throw new InvalidOperationException($"SetParent failed with error code: {error}");
-                    }
+                        Log.Error("SetParent failed - attempting retry");
 
-                    parent = Native.NativeMethods.GetParent(_windowHandle);
-                    Log.Information($"After retry, window parent: 0x{parent:X8}");
-                }
-                else
-                {
-                    Log.Warning($"! Window parent mismatch. Expected: 0x{workerW:X8}, Got: 0x{parent:X8}");
+                        // Try again with explicit error checking
+                        IntPtr result = Native.NativeMethods.SetParent(_windowHandle, workerW);
+                        if (result == IntPtr.Zero)
+                        {
+                            uint error = Native.NativeMethods.GetLastError();
+                            throw new InvalidOperationException($"SetParent failed with error code: {error}");
+                        }
+
+                        parent = Native.NativeMethods.GetParent(_windowHandle);
+                    }
+                    else
+                    {
+                        Log.Warning("Window parent mismatch detected");
+                    }
                 }
 
                 // CRITICAL FIX: Set Z-order to bottom so desktop icons appear on top
-                Log.Information("Step 5.5.1: Setting Z-order to HWND_BOTTOM so icons are on top...");
-                bool zOrderResult = Native.NativeMethods.SetWindowPos(
+                Native.NativeMethods.SetWindowPos(
                     _windowHandle,
-                    Native.NativeMethods.HWND_BOTTOM, // Put wallpaper at bottom
+                    Native.NativeMethods.HWND_BOTTOM,
                     0, 0, 0, 0,
                     Native.NativeMethods.SetWindowPosFlags.SWP_NOMOVE |
                     Native.NativeMethods.SetWindowPosFlags.SWP_NOSIZE |
                     Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
                 );
-                Log.Information($"Z-order set to HWND_BOTTOM: {zOrderResult}");
 
-                // Ensure window is positioned and sized correctly to fill PRIMARY desktop
-                Log.Information("Step 5.6: Positioning window to fill PRIMARY desktop...");
-
-                // CRITICAL: Use GetSystemMetrics to get PRIMARY monitor dimensions
-                // This ensures we target the main monitor with the taskbar
+                // Position window to fill PRIMARY desktop
+                // Use GetSystemMetrics to get PRIMARY monitor dimensions
                 int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
                 int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
 
-                Log.Information($"Primary monitor size from GetSystemMetrics: {screenWidth}x{screenHeight}");
-
                 // Position window at origin (0, 0) with primary monitor size
-                bool setPosResult = Native.NativeMethods.SetWindowPos(
+                Native.NativeMethods.SetWindowPos(
                     _windowHandle,
                     IntPtr.Zero,
                     0, 0,
@@ -382,14 +313,10 @@ namespace WebPaper
                     Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
                 );
 
-                Log.Information($"SetWindowPos result: {setPosResult}");
-                Log.Information($"Window positioned at (0, 0) with size {screenWidth}x{screenHeight}");
-
                 // Explicitly show the window
-                Log.Information("Step 5.7: Explicitly showing window...");
                 Native.NativeMethods.ShowWindow(_windowHandle, Native.NativeMethods.ShowWindowCommands.SW_SHOW);
 
-                Log.Information($"Step 5.8: Desktop attachment complete!");
+                Log.Information("Desktop attachment complete");
             }
             catch (Exception ex)
             {
@@ -427,13 +354,11 @@ namespace WebPaper
                 // Install hooks (CRITICAL: Pass main window handle + DispatcherQueue for thread marshaling)
                 _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle, _windowHandle, _dispatcherQueue!);
 
-                Log.Information("Input hooks installed successfully!");
-                Console.WriteLine(_inputManager.GetDiagnostics());
+                Log.Information("Input hooks installed successfully");
             }
             catch (Exception ex)
             {
-                Log.Warning($" Failed to install input hooks - {ex.Message}");
-                Log.Information("Wallpaper will render but may not be interactive.");
+                Log.Warning(ex, "Failed to install input hooks - wallpaper will render but may not be interactive");
                 // Don't throw - allow app to continue without input
             }
         }
@@ -454,11 +379,11 @@ namespace WebPaper
                 // Initialize with WebView2 and DispatcherQueue (for thread marshaling)
                 _performanceManager.Initialize(webView.CoreWebView2, _dispatcherQueue!);
 
-                Log.Information("Performance manager initialized successfully!");
+                Log.Information("Performance manager initialized successfully");
             }
             catch (Exception ex)
             {
-                Log.Warning($" Failed to initialize performance manager - {ex.Message}");
+                Log.Warning(ex, "Failed to initialize performance manager");
                 // Don't throw - allow app to continue without performance optimization
             }
         }
