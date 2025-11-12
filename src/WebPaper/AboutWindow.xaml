@@ -15,25 +15,41 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header with app icon and name -->
-        <Grid Grid.Row="0"
-              Background="#0078D4"
-              Padding="24,32">
-            <StackPanel HorizontalAlignment="Center" Spacing="12">
-                <TextBlock Text="🌐"
-                          FontSize="64"
-                          HorizontalAlignment="Center"/>
+        <!-- Header with app logo and name -->
+        <Grid Grid.Row="0" Padding="32,40">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#FF1E3A8A" Offset="0"/>
+                    <GradientStop Color="#FF3B82F6" Offset="0.5"/>
+                    <GradientStop Color="#FF60A5FA" Offset="1"/>
+                </LinearGradientBrush>
+            </Grid.Background>
+            <StackPanel HorizontalAlignment="Center" Spacing="16">
+                <!-- Logo -->
+                <Border Background="White"
+                       CornerRadius="16"
+                       Width="100"
+                       Height="100"
+                       Padding="16"
+                       HorizontalAlignment="Center">
+                    <Image Source="Assets/WebPaperLogo.png"
+                          Stretch="Uniform"/>
+                </Border>
                 <TextBlock Text="WebPaper"
-                          FontSize="32"
+                          FontSize="36"
                           FontWeight="Bold"
                           HorizontalAlignment="Center"
                           Foreground="White"/>
                 <TextBlock x:Name="VersionText"
-                          Text="Version 1.0.0"
+                          Text="Version 1.0.0-beta"
                           FontSize="14"
                           HorizontalAlignment="Center"
-                          Foreground="White"
-                          Opacity="0.9"/>
+                          Foreground="#E0FFFFFF"/>
+                <TextBlock Text="Interactive Webpage Wallpaper"
+                          FontSize="15"
+                          HorizontalAlignment="Center"
+                          Foreground="#B0FFFFFF"
+                          FontStyle="Italic"/>
             </StackPanel>
         </Grid>
 
@@ -138,17 +154,39 @@
 
                 <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
 
+                <!-- Created By -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Created By"
+                              FontSize="18"
+                              FontWeight="SemiBold"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="14">
+                        <Run Text="Omprakash J (MrDuck)" FontWeight="SemiBold"/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="For collaboration or commercial licensing:"/>
+                        <LineBreak/>
+                        <Run Text="📧 omprakashj2010@gmail.com"/>
+                    </TextBlock>
+                </StackPanel>
+
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
                 <!-- License -->
                 <StackPanel Spacing="8">
                     <TextBlock Text="License"
                               FontSize="18"
                               FontWeight="SemiBold"/>
                     <TextBlock TextWrapping="Wrap" FontSize="14">
-                        <Run Text="MIT License"/>
+                        <Run Text="Personal &amp; Hobbyist Use License"/>
                         <LineBreak/><LineBreak/>
-                        <Run Text="Copyright © 2025"/>
+                        <Run Text="Copyright © 2025 Omprakash J (MrDuck)"/>
                         <LineBreak/><LineBreak/>
-                        <Run Text="Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software."/>
+                        <Run Text="✅ Free for personal and hobbyist use"/>
+                        <LineBreak/>
+                        <Run Text="❌ Not for commercial use without licensing"/>
+                        <LineBreak/>
+                        <Run Text="📝 Attribution required"/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="See LICENSE file for full details."/>
                     </TextBlock>
                 </StackPanel>
 
