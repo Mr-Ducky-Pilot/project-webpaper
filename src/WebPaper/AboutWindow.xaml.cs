@@ -16,8 +16,8 @@ namespace WebPaper
         {
             this.InitializeComponent();
 
-            // Set window size
-            SetWindowSize(500, 650);
+            // Set window size (increased for new content)
+            SetWindowSize(650, 800);
 
             LoadVersionInfo();
             LoadSystemInfo();

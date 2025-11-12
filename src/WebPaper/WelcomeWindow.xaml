@@ -138,6 +138,7 @@
                                     Text="https://www.example.com"
                                     MinHeight="52"
                                     FontSize="16"
+                                    Foreground="#FF1F2937"
                                     CornerRadius="8"
                                     TextChanged="UrlTextBox_TextChanged"/>
 
@@ -157,20 +158,24 @@
                                     <Button Content="🎥 YouTube"
                                            Click="SuggestionButton_Click"
                                            Tag="https://www.youtube.com"
+                                           Foreground="#FF1F2937"
                                            Padding="16,10"/>
                                     <Button Content="📰 Reddit"
                                            Click="SuggestionButton_Click"
                                            Tag="https://www.reddit.com"
+                                           Foreground="#FF1F2937"
                                            Padding="16,10"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Content="🌦️ Windy"
                                            Click="SuggestionButton_Click"
                                            Tag="https://www.windy.com"
+                                           Foreground="#FF1F2937"
                                            Padding="16,10"/>
                                     <Button Content="🎨 Unsplash"
                                            Click="SuggestionButton_Click"
                                            Tag="https://unsplash.com"
+                                           Foreground="#FF1F2937"
                                            Padding="16,10"/>
                                 </StackPanel>
                             </StackPanel>
@@ -201,12 +206,14 @@
                         </Border>
 
                         <!-- Action Button -->
-                        <Button Content="Get Started →"
+                        <Button x:Name="GetStartedButton"
+                               Content="Get Started →"
                                Click="GetStartedButton_Click"
                                HorizontalAlignment="Stretch"
                                Padding="0,16"
                                FontSize="18"
                                FontWeight="SemiBold"
+                               Foreground="White"
                                Margin="0,8,0,0">
                             <Button.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
@@ -215,6 +222,27 @@
                                 </LinearGradientBrush>
                             </Button.Background>
                         </Button>
+
+                        <Border Height="1" Background="#FFE5E7EB" Margin="0,16,0,8"/>
+
+                        <!-- Footer - Created By & Repo Link -->
+                        <StackPanel Spacing="12" HorizontalAlignment="Center">
+                            <TextBlock HorizontalAlignment="Center">
+                                <Run Text="Created with ❤️ by "
+                                     FontSize="13"
+                                     Foreground="#FF666666"/>
+                                <Run Text="Omprakash J (MrDuck)"
+                                     FontSize="13"
+                                     FontWeight="SemiBold"
+                                     Foreground="#FF1E3A8A"/>
+                            </TextBlock>
+
+                            <HyperlinkButton Content="🐙 View on GitHub"
+                                           NavigateUri="https://github.com/Mr-Ducky-Pilot/project-webpaper"
+                                           HorizontalAlignment="Center"
+                                           Padding="12,6"
+                                           FontSize="12"/>
+                        </StackPanel>
 
                     </StackPanel>
                 </Border>
