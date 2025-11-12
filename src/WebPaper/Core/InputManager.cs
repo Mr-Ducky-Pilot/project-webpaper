@@ -226,9 +226,11 @@ namespace WebPaper.Core
                         // - Then our wallpaper handles the click for webpage interaction
                         // This works because SysListView32 uses hit-testing internally!
 
-                        // SPECIAL HANDLING: Right-click on desktop should show desktop context menu, not browser menu
-                        // This is a user requirement - users typically don't need right-click on webpages
+                        // SPECIAL HANDLING:
+                        // 1. Right-click should show desktop context menu, not browser menu
+                        // 2. Double-click should ONLY go to icons (for opening), NOT to wallpaper (prevents text selection)
                         bool isRightClick = (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP);
+                        bool isDoubleClick = (msg == WM_LBUTTONDBLCLK);
 
                         // Step 1: Always forward ALL clicks to desktop icons first
                         if (_desktopIconWindow != IntPtr.Zero)
@@ -236,9 +238,9 @@ namespace WebPaper.Core
                             ForwardToDesktopIcons(_desktopIconWindow, msg, hookStruct);
                         }
 
-                        // Step 2: Forward to wallpaper ONLY for left-clicks when over wallpaper
-                        // Skip wallpaper for right-clicks to allow desktop context menu
-                        if (isOverWallpaper && !isRightClick)
+                        // Step 2: Forward to wallpaper ONLY for SINGLE left-clicks when over wallpaper
+                        // Skip: right-clicks (to allow desktop context menu) and double-clicks (to prevent text selection)
+                        if (isOverWallpaper && !isRightClick && !isDoubleClick)
                         {
                             ForwardMouseEvent(wParam, hookStruct);
                         }
@@ -302,10 +304,17 @@ namespace WebPaper.Core
                     // Parse keyboard event
                     int vkCode = Marshal.ReadInt32(lParam);
 
-                    // CRITICAL FIX: Always forward WM_KEYDOWN/WM_KEYUP (including repeats)
-                    // This allows backspace, arrows, etc. to repeat when held
-                    // The ForwardKeyboardEvent will intelligently handle WM_CHAR to prevent duplicates
+                    // Forward keyboard event to WebView2
                     ForwardKeyboardEvent(wParam, vkCode, lParam);
+
+                    // CRITICAL FIX: CONSUME the keyboard event to prevent it from also going to desktop!
+                    // When mouse is over wallpaper, keyboard should ONLY go to webpage, NOT to desktop icons.
+                    // This prevents:
+                    // - Desktop icon search when typing (typing 'a' won't search icons starting with 'a')
+                    // - Desktop icon selection when using arrow keys
+                    // - Double input (webpage receives it once via our forwarding, not twice)
+                    // Return 1 to suppress the event from further processing.
+                    return new IntPtr(1);
                 }
             }
             catch (Exception ex)
@@ -313,6 +322,7 @@ namespace WebPaper.Core
                 Console.WriteLine($"InputManager: Keyboard hook error - {ex.Message}");
             }
 
+            // If we didn't handle it (error or not enabled), pass it through
             return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
         }
 
