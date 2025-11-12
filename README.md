@@ -160,6 +160,13 @@ After discovering Lively Wallpaper (which supports webpages but without full int
 
 ---
 
+## ⚠️ Known Limitations
+
+- **Right-click on desktop:** Right-clicking on the desktop or desktop icons shows the Windows context menu (not the wallpaper's context menu). This is intentional - most users don't need right-click functionality on websites, and it allows for proper desktop/icon context menus.
+- **Trackpad two-finger scroll:** May not work on some laptops. Use mouse wheel, arrow keys, or scrollbars instead.
+
+---
+
 ## 📚 Documentation
 
 - **[User Guide](../../wiki/User-Guide)** - Installation, usage, troubleshooting

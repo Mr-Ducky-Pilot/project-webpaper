@@ -77,22 +77,27 @@ namespace WebPaper
 
         private void UserGuideButton_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/yourusername/project-webpaper/blob/main/USER_GUIDE.md");
+            OpenUrl("https://github.com/Mr-Ducky-Pilot/project-webpaper/blob/main/USER_GUIDE.md");
         }
 
         private void ReportBugButton_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/yourusername/project-webpaper/issues/new?template=bug_report.md");
+            OpenUrl("https://github.com/Mr-Ducky-Pilot/project-webpaper/issues/new?template=bug_report.md");
         }
 
         private void FeatureRequestButton_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/yourusername/project-webpaper/issues/new?template=feature_request.md");
+            OpenUrl("https://github.com/Mr-Ducky-Pilot/project-webpaper/issues/new?template=feature_request.md");
         }
 
         private void GitHubButton_Click(object sender, RoutedEventArgs e)
         {
-            OpenUrl("https://github.com/yourusername/project-webpaper");
+            OpenUrl("https://github.com/Mr-Ducky-Pilot/project-webpaper");
+        }
+
+        private void LinkedInButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenUrl("https://www.linkedin.com/in/omprakash-jat/");
         }
 
         private void OpenUrl(string url)

@@ -199,26 +199,48 @@ namespace WebPaper.Core
                     }
 
                     // Handle clicks for desktop interaction
-                    if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK)
+                    if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK || msg == WM_RBUTTONDBLCLK)
                     {
-                        // CRITICAL: Only forward clicks that are actually on our wallpaper
-                        // With HWND_BOTTOM z-order, desktop icons appear on top naturally
+                        // CRITICAL: Handle click targets properly based on what's under the cursor
+                        // Our wallpaper physically blocks clicks, so we must forward them appropriately
                         //
-                        // Icon interaction strategy:
-                        // - Single click on icon → Selects icon (Windows handles)
-                        // - Double click on icon → Opens icon (Windows handles)
-                        // - Right click on icon → Context menu (Windows handles)
-                        // - Enter key on selected icon → Opens icon (Windows handles)
-                        //
-                        // We ONLY forward clicks on empty desktop space to WebView2
+                        // Click handling strategy:
+                        // 1. Click on desktop icons → Forward to SysListView32 (re-enabled with keyboard fix)
+                        // 2. Click on wallpaper → Forward to WebView2
+                        // 3. Right-click on desktop → Forward to desktop (not wallpaper, per user request)
+                        // 4. Click on other window → Let Windows handle naturally
 
-                        if (isOverWallpaper)
+                        // IMPORTANT: Right-click on desktop should show Windows context menu, NOT wallpaper context menu
+                        // This is a limitation as mentioned in requirements
+                        if ((msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_RBUTTONDBLCLK) && !isOverWallpaper)
                         {
-                            // Click is on wallpaper (empty desktop or webpage) - forward to WebView2
+                            // Right-click on desktop or icons - let Windows handle for context menu
+                            // Don't forward to wallpaper (user doesn't need right-click on websites typically)
+                            // This allows desktop context menu and icon context menu to work
+                            var (_, targetWindow) = GetClickTarget(hookStruct.pt);
+                            if (targetWindow != IntPtr.Zero)
+                            {
+                                // Forward right-click to desktop icons or desktop
+                                ForwardToDesktopIcons(targetWindow, msg, hookStruct);
+                            }
+                        }
+                        else if (isOverWallpaper)
+                        {
+                            // Left-click on wallpaper (empty desktop or webpage) - forward to WebView2
+                            // Right-click on wallpaper is handled by WebView2 (for link context menus, etc.)
                             ForwardMouseEvent(wParam, hookStruct);
                         }
-                        // else: Click is on icon or other window - let Windows handle naturally
-                        // Don't forward! Prevents icon focus stealing and keyboard interference
+                        else
+                        {
+                            // Left-click on desktop icons - forward to SysListView32
+                            // With keyboard fix (event consumption), this no longer causes typing issues
+                            var (_, targetWindow) = GetClickTarget(hookStruct.pt);
+                            if (targetWindow != IntPtr.Zero)
+                            {
+                                ForwardToDesktopIcons(targetWindow, msg, hookStruct);
+                            }
+                            // else: Click on other window - let Windows handle naturally
+                        }
                     }
                     else if (msg == WM_MOUSEWHEEL)
                     {
