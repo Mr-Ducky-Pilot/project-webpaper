@@ -31,13 +31,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Explicitly include UnifiedSettingsWindow XAML files -->
+    <!-- Explicitly include UnifiedSettingsWindow XAML file -->
+    <!-- Note: .xaml.cs file is automatically included by .NET SDK -->
     <Page Include="UnifiedSettingsWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Compile Include="UnifiedSettingsWindow.xaml.cs">
-      <DependentUpon>UnifiedSettingsWindow.xaml</DependentUpon>
-    </Compile>
   </ItemGroup>
 
   <ItemGroup>
