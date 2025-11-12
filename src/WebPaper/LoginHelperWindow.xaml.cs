@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Threading.Tasks;
+using Serilog;
 using WebPaper.Services;
 using Windows.Graphics;
 using WinRT.Interop;
@@ -113,11 +114,11 @@ namespace WebPaper
                 // Navigate to login URL
                 loginWebView.CoreWebView2.Navigate(_loginUrl);
 
-                Console.WriteLine($"LoginHelper: Navigated to {_loginUrl}");
+                Log.Information("LoginHelper navigated to {LoginUrl}", _loginUrl);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"LoginHelper ERROR: Initialization failed - {ex.Message}");
+                Log.Error(ex, "LoginHelper initialization failed");
                 ShowError($"Failed to load login page: {ex.Message}");
             }
         }
@@ -129,7 +130,7 @@ namespace WebPaper
 
             if (!args.IsSuccess)
             {
-                Console.WriteLine($"LoginHelper: Navigation failed - {args.WebErrorStatus}");
+                Log.Warning("LoginHelper navigation failed: {WebErrorStatus}", args.WebErrorStatus);
                 ShowError($"Failed to load page: {args.WebErrorStatus}");
             }
         }
@@ -151,14 +152,14 @@ namespace WebPaper
 
                 _savedSuccessfully = true;
 
-                Console.WriteLine("LoginHelper: Cookies saved successfully");
+                Log.Information("LoginHelper cookies saved successfully");
 
                 // Close window
                 this.Close();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"LoginHelper ERROR: Failed to save cookies - {ex.Message}");
+                Log.Error(ex, "LoginHelper failed to save cookies");
                 ShowError($"Failed to save login: {ex.Message}");
 
                 if (sender is Button btn)
@@ -171,13 +172,13 @@ namespace WebPaper
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
-            Console.WriteLine("LoginHelper: Cancelled by user");
+            Log.Information("LoginHelper cancelled by user");
             this.Close();
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            Console.WriteLine("LoginHelper: Closed by user");
+            Log.Information("LoginHelper closed by user");
             this.Close();
         }
 

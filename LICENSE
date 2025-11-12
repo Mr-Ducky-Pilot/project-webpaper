@@ -1,0 +1,94 @@
+WebPaper - Personal & Hobbyist Use License
+
+Copyright (c) 2025 Omprakash J (MrDuck)
+
+==============================================================================
+LICENSE TERMS
+==============================================================================
+
+PERMISSIONS:
+
+✅ Personal Use - You may use WebPaper for personal, non-commercial purposes.
+
+✅ Modification - You may modify the source code for personal use.
+
+✅ Distribution (Non-Commercial) - You may share WebPaper with others for
+   non-commercial purposes, provided you include this license and give proper
+   attribution.
+
+✅ Learning & Education - You may use WebPaper for educational purposes,
+   research, and learning.
+
+✅ Hobbyist Projects - You may use WebPaper in hobby projects and personal
+   websites, provided they are non-commercial in nature.
+
+RESTRICTIONS:
+
+❌ Commercial Use - You may NOT use WebPaper, in whole or in part, for
+   commercial purposes without explicit written permission from the author.
+   Commercial use includes but is not limited to:
+   - Selling the software
+   - Using the software in a commercial product or service
+   - Using the software to generate revenue
+   - Incorporating the software into commercial applications
+
+❌ Removal of Attribution - You may NOT remove or modify attribution to the
+   original author (Omprakash J / MrDuck).
+
+REQUIREMENTS:
+
+📝 Attribution - You MUST give appropriate credit to the original author:
+
+   "WebPaper by Omprakash J (MrDuck)"
+
+   Include a link to the original repository when distributing or displaying
+   publicly: https://github.com/Mr-Ducky-Pilot/project-webpaper
+
+   This attribution must be visible in:
+   - Any redistributed versions
+   - Modified versions
+   - Documentation
+   - About/Credits sections of derived applications
+
+==============================================================================
+COMMERCIAL LICENSING
+==============================================================================
+
+For commercial use, partnerships, or integration into commercial products,
+please contact:
+
+📧 Email: omprakashj2010@gmail.com
+🐙 GitHub: @Mr-Ducky-Pilot
+
+Commercial licenses are available and can be tailored to your specific needs.
+
+==============================================================================
+WARRANTY DISCLAIMER
+==============================================================================
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+ACKNOWLEDGMENTS
+==============================================================================
+
+Inspired by: Lively Wallpaper (https://github.com/rocksdanister/lively)
+
+Built with:
+- Microsoft WebView2
+- WinUI 3
+- .NET 8
+
+==============================================================================
+
+For questions about this license, please open an issue on GitHub or contact
+the author at omprakashj2010@gmail.com.
+
+Last Updated: November 12, 2025

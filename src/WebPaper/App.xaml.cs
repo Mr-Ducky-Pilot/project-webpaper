@@ -35,11 +35,7 @@ namespace WebPaper
         {
             try
             {
-                // Allocate console for debugging (comment out for production)
-                Native.NativeMethods.AllocConsole();
-                Console.WriteLine("Console allocated for debugging");
-
-                // Initialize Serilog file logging
+                // Initialize Serilog file logging (production mode - no console)
                 var logPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "WebPaper",
@@ -50,20 +46,31 @@ namespace WebPaper
                 Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
 
                 Log.Logger = new LoggerConfiguration()
-                    .MinimumLevel.Debug()
-                    .WriteTo.Console()
+                    .MinimumLevel.Information() // Changed from Debug to Information for production
                     .WriteTo.File(logPath,
                         rollingInterval: RollingInterval.Day,
                         retainedFileCountLimit: 7,
                         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
                     .CreateLogger();
 
-                Console.WriteLine($"Log file: {logPath}");
+                Log.Information("Logging initialized successfully. Log file: {LogPath}", logPath);
             }
             catch (Exception ex)
             {
-                // If logging fails, continue anyway
-                Console.WriteLine($"Warning: Failed to initialize logging: {ex.Message}");
+                // If logging fails, try to show error via MessageBox
+                try
+                {
+                    Native.NativeMethods.MessageBox(
+                        IntPtr.Zero,
+                        $"Failed to initialize logging: {ex.Message}\n\nThe application will continue but errors will not be logged.",
+                        "WebPaper - Logging Error",
+                        Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONWARNING
+                    );
+                }
+                catch
+                {
+                    // If even that fails, just continue
+                }
             }
         }
 

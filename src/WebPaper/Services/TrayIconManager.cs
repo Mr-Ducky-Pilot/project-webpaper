@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
+using Serilog;
 using Application = Microsoft.UI.Xaml.Application;
 
 namespace WebPaper.Services
@@ -77,11 +78,11 @@ namespace WebPaper.Services
                 // Double-click to show settings
                 _notifyIcon.DoubleClick += (s, e) => ShowSettingsRequested?.Invoke(this, EventArgs.Empty);
 
-                Console.WriteLine("TrayIconManager: System tray icon initialized");
+                Log.Information("System tray icon initialized");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"TrayIconManager ERROR: Failed to initialize - {ex.Message}");
+                Log.Error(ex, "Failed to initialize system tray icon");
             }
         }
 
@@ -96,7 +97,7 @@ namespace WebPaper.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"TrayIconManager: Failed to show notification - {ex.Message}");
+                Log.Error(ex, "Failed to show notification");
             }
         }
 
@@ -151,12 +152,12 @@ namespace WebPaper.Services
                 }
                 else
                 {
-                    Console.WriteLine($"TrayIconManager: Icon not found at {iconPath}, using system icon");
+                    Log.Warning("Icon not found at {IconPath}, using system icon", iconPath);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"TrayIconManager: Failed to load custom icon - {ex.Message}");
+                Log.Error(ex, "Failed to load custom icon");
             }
 
             // Fallback to system application icon
@@ -170,7 +171,7 @@ namespace WebPaper.Services
                 _notifyIcon?.Dispose();
                 _notifyIcon = null;
                 _disposed = true;
-                Console.WriteLine("TrayIconManager: Disposed");
+                Log.Information("TrayIconManager disposed");
             }
         }
     }
