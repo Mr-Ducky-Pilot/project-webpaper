@@ -7,6 +7,7 @@ using System;
 using System.Threading.Tasks;
 using Serilog;
 using WebPaper.Core;
+using WebPaper.Models;
 using Windows.Graphics;
 using Windows.System;
 using WinRT.Interop;
