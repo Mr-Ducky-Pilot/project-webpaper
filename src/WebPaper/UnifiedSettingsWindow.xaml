@@ -59,7 +59,7 @@
                     </TextBlock>
 
                     <RadioButtons x:Name="ControlModeRadio" SelectionChanged="ControlModeRadio_SelectionChanged">
-                        <RadioButton Content="WebPaper Control (Default)" Tag="WebPaper">
+                        <RadioButton Tag="WebPaper">
                             <RadioButton.Content>
                                 <StackPanel Spacing="4" Margin="0,4">
                                     <TextBlock Text="🌐 WebPaper Control (Default)" FontWeight="SemiBold"/>
@@ -71,7 +71,7 @@
                             </RadioButton.Content>
                         </RadioButton>
 
-                        <RadioButton Content="Desktop Control" Tag="Desktop" Margin="0,12,0,0">
+                        <RadioButton Tag="Desktop" Margin="0,12,0,0">
                             <RadioButton.Content>
                                 <StackPanel Spacing="4" Margin="0,4">
                                     <TextBlock Text="🖥️ Desktop Control" FontWeight="SemiBold"/>
