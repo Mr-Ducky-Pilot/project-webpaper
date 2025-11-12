@@ -552,8 +552,28 @@ namespace WebPaper
                 {
                     try
                     {
+                        // TEMPORARY: Use old settings window until UnifiedSettingsWindow is fixed
+                        var settingsWindow = new SettingsWindow(
+                            getConfig: () => _config ?? Models.AppConfig.CreateDefault(),
+                            onConfigChanged: async (updatedConfig) =>
+                            {
+                                await _configManager.SaveConfigAsync(updatedConfig);
+                                _config = updatedConfig;
+                                if (_inputManager != null)
+                                {
+                                    _inputManager.ControlMode = updatedConfig.ControlMode;
+                                }
+                                if (_performanceManager != null)
+                                {
+                                    _performanceManager.IsEnabled = updatedConfig.PerformanceOptimizationEnabled;
+                                    _performanceManager.BatteryThreshold = updatedConfig.BatteryPauseThreshold;
+                                }
+                            });
+                        settingsWindow.Activate();
+                        return;
+
                         // Create and show unified settings window on UI thread
-                        var unifiedWindow = new UnifiedSettingsWindow(
+                        /*var unifiedWindow = new UnifiedSettingsWindow(
                             getConfig: () => _config ?? Models.AppConfig.CreateDefault(),
                             onConfigChanged: async (updatedConfig) =>
                             {
@@ -593,7 +613,7 @@ namespace WebPaper
                         );
 
                         unifiedWindow.Activate();
-                        Log.Information("Unified settings window opened successfully");
+                        Log.Information("Unified settings window opened successfully");*/
                     }
                     catch (Exception ex)
                     {
