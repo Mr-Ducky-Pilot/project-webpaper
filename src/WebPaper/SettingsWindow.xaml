@@ -20,7 +20,7 @@
               Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
               Padding="24,20">
             <StackPanel>
-                <TextBlock Text="Settings"
+                <TextBlock Text="⚙️ Settings"
                           FontSize="28"
                           FontWeight="Bold"/>
                 <TextBlock Text="Configure your interactive wallpaper"

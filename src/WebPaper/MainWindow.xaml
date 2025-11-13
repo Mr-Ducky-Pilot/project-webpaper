@@ -6,8 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Title="WebPaper"
-    KeyDown="MainWindow_KeyDown">
+    Title="WebPaper">
 
     <Grid x:Name="RootGrid" Background="Transparent">
         <!-- WebView2 will render the webpage here -->
@@ -16,10 +15,10 @@
                   DefaultBackgroundColor="Transparent">
             <WebView2.ContextFlyout>
                 <MenuFlyout>
-                    <MenuFlyoutItem Text="Settings" Click="SettingsMenuItem_Click"/>
-                    <MenuFlyoutItem Text="Reload Wallpaper" Click="ReloadMenuItem_Click"/>
+                    <MenuFlyoutItem Text="⚙️ Settings" Click="SettingsMenuItem_Click"/>
+                    <MenuFlyoutItem Text="🔄 Reload Wallpaper" Click="ReloadMenuItem_Click"/>
                     <MenuFlyoutSeparator/>
-                    <MenuFlyoutItem Text="About WebPaper" Click="AboutMenuItem_Click"/>
+                    <MenuFlyoutItem Text="ℹ️ About WebPaper" Click="AboutMenuItem_Click"/>
                 </MenuFlyout>
             </WebView2.ContextFlyout>
         </WebView2>
@@ -107,7 +106,7 @@
                         <StackPanel Orientation="Horizontal"
                                    HorizontalAlignment="Center"
                                    Spacing="12">
-                            <TextBlock Text="!"
+                            <TextBlock Text="⚠️"
                                       FontSize="32"
                                       VerticalAlignment="Center"/>
                             <TextBlock Text="Initialization Error"
