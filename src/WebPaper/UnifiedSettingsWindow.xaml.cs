@@ -86,14 +86,8 @@ namespace WebPaper
                 HomeUrlTextBox.Text = config.WallpaperUrl ?? "https://blink42.com";
 
                 // Load control mode
-                if (config.ControlMode == ControlMode.WebPaperControl)
-                {
-                    WebPaperControlRadio.IsChecked = true;
-                }
-                else
-                {
-                    DesktopControlRadio.IsChecked = true;
-                }
+                // Off = WebPaperControl (default), On = DesktopControl
+                ControlModeToggle.IsOn = config.ControlMode == ControlMode.DesktopControl;
 
                 // Load performance settings
                 PerformanceToggle.IsOn = config.PerformanceOptimizationEnabled;
@@ -198,16 +192,17 @@ namespace WebPaper
             }
         }
 
-        private void ControlModeRadio_Checked(object sender, RoutedEventArgs e)
+        private void ControlModeToggle_Toggled(object sender, RoutedEventArgs e)
         {
             try
             {
                 if (_getConfig == null || _onConfigChanged == null) return;
 
                 var config = _getConfig();
-                config.ControlMode = WebPaperControlRadio.IsChecked == true
-                    ? ControlMode.WebPaperControl
-                    : ControlMode.DesktopControl;
+                // Off = WebPaperControl, On = DesktopControl
+                config.ControlMode = ControlModeToggle.IsOn
+                    ? ControlMode.DesktopControl
+                    : ControlMode.WebPaperControl;
 
                 _onConfigChanged(config);
 
