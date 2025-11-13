@@ -137,19 +137,19 @@
                               FontSize="18"
                               FontWeight="SemiBold"/>
                     <StackPanel Spacing="8">
-                        <HyperlinkButton Content="📚 User Guide"
+                        <HyperlinkButton Content="User Guide"
                                         Click="UserGuideButton_Click"
                                         Padding="0"/>
-                        <HyperlinkButton Content="🐛 Report a Bug"
+                        <HyperlinkButton Content="Report a Bug"
                                         Click="ReportBugButton_Click"
                                         Padding="0"/>
-                        <HyperlinkButton Content="💡 Suggest a Feature"
+                        <HyperlinkButton Content="Suggest a Feature"
                                         Click="FeatureRequestButton_Click"
                                         Padding="0"/>
-                        <HyperlinkButton Content="🌐 GitHub Repository"
+                        <HyperlinkButton Content="GitHub Repository"
                                         Click="GitHubButton_Click"
                                         Padding="0"/>
-                        <HyperlinkButton Content="💼 LinkedIn Profile"
+                        <HyperlinkButton Content="LinkedIn Profile"
                                         Click="LinkedInButton_Click"
                                         Padding="0"/>
                     </StackPanel>
@@ -165,19 +165,17 @@
                     <TextBlock TextWrapping="Wrap" FontSize="14">
                         <Run Text="Omprakash J (MrDuck)" FontWeight="SemiBold"/>
                         <LineBreak/><LineBreak/>
-                        <Run Text="💼 "/>
                         <Hyperlink NavigateUri="https://www.linkedin.com/in/omprakash-jat/">
                             <Run Text="LinkedIn Profile"/>
                         </Hyperlink>
                         <LineBreak/>
-                        <Run Text="🐙 "/>
                         <Hyperlink NavigateUri="https://github.com/Mr-Ducky-Pilot">
                             <Run Text="GitHub Profile"/>
                         </Hyperlink>
                         <LineBreak/><LineBreak/>
                         <Run Text="For collaboration or commercial licensing:"/>
                         <LineBreak/>
-                        <Run Text="📧 omprakashj2010@gmail.com"/>
+                        <Run Text="Email: omprakashj2010@gmail.com"/>
                     </TextBlock>
                 </StackPanel>
 
