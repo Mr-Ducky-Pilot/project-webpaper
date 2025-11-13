@@ -555,16 +555,8 @@ namespace WebPaper
                 {
                     try
                     {
-                        // TEMPORARY: Use old settings window until UnifiedSettingsWindow is fixed
-                        if (_configManager != null && _cookieManager != null)
-                        {
-                            var settingsWindow = new SettingsWindow(_configManager, _cookieManager);
-                            settingsWindow.Activate();
-                            return;
-                        }
-
                         // Create and show unified settings window on UI thread
-                        /*var unifiedWindow = new UnifiedSettingsWindow(
+                        var unifiedWindow = new UnifiedSettingsWindow(
                             getConfig: () => _config ?? Models.AppConfig.CreateDefault(),
                             onConfigChanged: async (updatedConfig) =>
                             {
@@ -576,6 +568,7 @@ namespace WebPaper
                                 if (_inputManager != null)
                                 {
                                     _inputManager.ControlMode = updatedConfig.ControlMode;
+                                    Log.Information($"InputManager control mode updated to: {updatedConfig.ControlMode}");
                                 }
 
                                 // Update performance manager
@@ -585,7 +578,7 @@ namespace WebPaper
                                     _performanceManager.BatteryThreshold = updatedConfig.BatteryPauseThreshold;
                                 }
 
-                                Log.Information("Configuration updated");
+                                Log.Information("Configuration updated from UnifiedSettingsWindow");
                             },
                             onExitApp: () =>
                             {
@@ -604,7 +597,7 @@ namespace WebPaper
                         );
 
                         unifiedWindow.Activate();
-                        Log.Information("Unified settings window opened successfully");*/
+                        Log.Information("Unified settings window opened successfully");
                     }
                     catch (Exception ex)
                     {
