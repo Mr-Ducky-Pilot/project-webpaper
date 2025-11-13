@@ -514,11 +514,12 @@ namespace WebPaper
         }
 
         // Keyboard shortcut handler for page refresh (Ctrl+R, F5)
-        private void MainWindow_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        // Using PreviewKeyDown to catch before WebView2 processes it
+        private void Window_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             try
             {
-                // Check for Ctrl+R or F5
+                // Only handle Ctrl+R and F5 shortcuts
                 // Use WinUI3-compatible keyboard state detection
                 var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
 
@@ -531,8 +532,9 @@ namespace WebPaper
                     // Reload the page
                     webView.CoreWebView2?.Reload();
                     Log.Information("Page reloaded via keyboard shortcut");
-                    e.Handled = true;
+                    e.Handled = true; // Prevent further processing
                 }
+                // All other keys pass through normally - don't interfere with typing
             }
             catch (Exception ex)
             {
