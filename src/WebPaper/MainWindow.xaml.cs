@@ -34,7 +34,7 @@ namespace WebPaper
         private AppWindow? _appWindow;
         private bool _isInitialized = false;
         private bool _wallpaperEnabled = true;
-        private DispatcherQueue? _dispatcherQueue;
+        private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
 
         public MainWindow()
         {
@@ -42,7 +42,7 @@ namespace WebPaper
 
             // CRITICAL: Capture DispatcherQueue on UI thread for thread marshaling
             // This is needed to execute WebView2 operations from background threads (like input hooks)
-            _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+            _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
             // Initialize window handle and AppWindow
             _windowHandle = WindowNative.GetWindowHandle(this);
@@ -549,7 +549,7 @@ namespace WebPaper
 
                 // CRITICAL FIX: System tray events fire on Windows Forms thread
                 // WinUI 3 windows must be created on UI thread - dispatch to DispatcherQueue
-                DispatcherQueue.TryEnqueue(() =>
+                _dispatcherQueue?.TryEnqueue(() =>
                 {
                     try
                     {
@@ -693,7 +693,7 @@ namespace WebPaper
 
                     // CRITICAL FIX: Properly handle UI state like RetryButton_Click
                     // This ensures error panels are hidden and loading is shown
-                    DispatcherQueue.TryEnqueue(() =>
+                    _dispatcherQueue?.TryEnqueue(() =>
                     {
                         try
                         {
