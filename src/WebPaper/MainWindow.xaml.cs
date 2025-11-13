@@ -10,7 +10,6 @@ using WebPaper.Core;
 using WebPaper.Models;
 using Windows.Graphics;
 using Windows.System;
-using Windows.UI.Core;
 using WinRT.Interop;
 using CoreWebView2 = Microsoft.Web.WebView2.Core.CoreWebView2;
 using CoreWebView2Environment = Microsoft.Web.WebView2.Core.CoreWebView2Environment;
