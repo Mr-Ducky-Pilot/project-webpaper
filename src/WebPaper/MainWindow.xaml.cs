@@ -514,11 +514,12 @@ namespace WebPaper
         }
 
         // Keyboard shortcut handler for page refresh (Ctrl+R, F5)
-        private void MainWindow_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        // Using PreviewKeyDown to catch before WebView2 processes it
+        private void Window_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             try
             {
-                // Check for Ctrl+R or F5
+                // Only handle Ctrl+R and F5 shortcuts
                 // Use WinUI3-compatible keyboard state detection
                 var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
 
@@ -531,8 +532,9 @@ namespace WebPaper
                     // Reload the page
                     webView.CoreWebView2?.Reload();
                     Log.Information("Page reloaded via keyboard shortcut");
-                    e.Handled = true;
+                    e.Handled = true; // Prevent further processing
                 }
+                // All other keys pass through normally - don't interfere with typing
             }
             catch (Exception ex)
             {
@@ -553,16 +555,8 @@ namespace WebPaper
                 {
                     try
                     {
-                        // TEMPORARY: Use old settings window until UnifiedSettingsWindow is fixed
-                        if (_configManager != null && _cookieManager != null)
-                        {
-                            var settingsWindow = new SettingsWindow(_configManager, _cookieManager);
-                            settingsWindow.Activate();
-                            return;
-                        }
-
                         // Create and show unified settings window on UI thread
-                        /*var unifiedWindow = new UnifiedSettingsWindow(
+                        var unifiedWindow = new UnifiedSettingsWindow(
                             getConfig: () => _config ?? Models.AppConfig.CreateDefault(),
                             onConfigChanged: async (updatedConfig) =>
                             {
@@ -574,6 +568,7 @@ namespace WebPaper
                                 if (_inputManager != null)
                                 {
                                     _inputManager.ControlMode = updatedConfig.ControlMode;
+                                    Log.Information($"InputManager control mode updated to: {updatedConfig.ControlMode}");
                                 }
 
                                 // Update performance manager
@@ -583,7 +578,7 @@ namespace WebPaper
                                     _performanceManager.BatteryThreshold = updatedConfig.BatteryPauseThreshold;
                                 }
 
-                                Log.Information("Configuration updated");
+                                Log.Information("Configuration updated from UnifiedSettingsWindow");
                             },
                             onExitApp: () =>
                             {
@@ -602,7 +597,7 @@ namespace WebPaper
                         );
 
                         unifiedWindow.Activate();
-                        Log.Information("Unified settings window opened successfully");*/
+                        Log.Information("Unified settings window opened successfully");
                     }
                     catch (Exception ex)
                     {
