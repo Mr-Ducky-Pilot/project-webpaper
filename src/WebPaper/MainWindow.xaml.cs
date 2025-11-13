@@ -10,6 +10,7 @@ using WebPaper.Core;
 using WebPaper.Models;
 using Windows.Graphics;
 using Windows.System;
+using Windows.UI.Core;
 using WinRT.Interop;
 using CoreWebView2 = Microsoft.Web.WebView2.Core.CoreWebView2;
 using CoreWebView2Environment = Microsoft.Web.WebView2.Core.CoreWebView2Environment;
@@ -520,11 +521,11 @@ namespace WebPaper
             {
                 // Check for Ctrl+R or F5
                 // Use WinUI3-compatible keyboard state detection
-                var window = Microsoft.UI.Xaml.Window.Current ?? this;
-                var coreWindow = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
+                var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
 
                 // Check if Control key is pressed (WinUI3 compatible way)
-                bool isCtrlPressed = (coreWindow & Microsoft.UI.Input.VirtualKeyStates.Down) == Microsoft.UI.Input.VirtualKeyStates.Down;
+                // GetKeyStateForCurrentThread returns CoreVirtualKeyStates
+                bool isCtrlPressed = (ctrlState & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
 
                 if ((e.Key == VirtualKey.R && isCtrlPressed) || e.Key == VirtualKey.F5)
                 {
@@ -554,24 +555,12 @@ namespace WebPaper
                     try
                     {
                         // TEMPORARY: Use old settings window until UnifiedSettingsWindow is fixed
-                        var settingsWindow = new SettingsWindow(
-                            getConfig: () => _config ?? Models.AppConfig.CreateDefault(),
-                            onConfigChanged: async (updatedConfig) =>
-                            {
-                                await _configManager.SaveConfigAsync(updatedConfig);
-                                _config = updatedConfig;
-                                if (_inputManager != null)
-                                {
-                                    _inputManager.ControlMode = updatedConfig.ControlMode;
-                                }
-                                if (_performanceManager != null)
-                                {
-                                    _performanceManager.IsEnabled = updatedConfig.PerformanceOptimizationEnabled;
-                                    _performanceManager.BatteryThreshold = updatedConfig.BatteryPauseThreshold;
-                                }
-                            });
-                        settingsWindow.Activate();
-                        return;
+                        if (_configManager != null && _cookieManager != null)
+                        {
+                            var settingsWindow = new SettingsWindow(_configManager, _cookieManager);
+                            settingsWindow.Activate();
+                            return;
+                        }
 
                         // Create and show unified settings window on UI thread
                         /*var unifiedWindow = new UnifiedSettingsWindow(
