@@ -94,6 +94,9 @@ namespace WebPaper.Native
         [DllImport("user32.dll")]
         public static extern IntPtr GetForegroundWindow();
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
         /// <summary>
         /// Brings the thread that created the specified window into the foreground and activates the window.
         /// </summary>

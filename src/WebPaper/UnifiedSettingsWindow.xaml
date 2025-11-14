@@ -65,38 +65,6 @@
                     </Grid>
                 </StackPanel>
 
-                <!-- Control Mode Section -->
-                <StackPanel Spacing="12">
-                    <TextBlock Text="Control Mode"
-                              FontSize="18"
-                              FontWeight="SemiBold"/>
-
-                    <ToggleSwitch x:Name="ControlModeToggle"
-                                 OnContent="Desktop Control"
-                                 OffContent="WebPaper Control"
-                                 Toggled="ControlModeToggle_Toggled">
-                        <ToggleSwitch.HeaderTemplate>
-                            <DataTemplate>
-                                <StackPanel>
-                                    <TextBlock Text="Choose how you want to interact with your wallpaper and desktop" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                    <TextBlock Text="WebPaper Control: Interact with webpage - click, type, scroll. Desktop icons remain clickable."
-                                              FontSize="12"
-                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                              TextWrapping="Wrap"
-                                              Margin="0,4,0,0"/>
-                                    <TextBlock Text="Desktop Control: Static wallpaper - no webpage interaction. All input goes to Windows/desktop."
-                                              FontSize="12"
-                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                              TextWrapping="Wrap"
-                                              Margin="0,4,0,0"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ToggleSwitch.HeaderTemplate>
-                    </ToggleSwitch>
-                </StackPanel>
-
-                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
-
                 <!-- Performance Settings -->
                 <StackPanel Spacing="12">
                     <TextBlock Text="Performance"

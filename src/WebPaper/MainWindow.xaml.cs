@@ -35,6 +35,7 @@ namespace WebPaper
         private bool _isInitialized = false;
         private bool _wallpaperEnabled = true;
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
+        private UnifiedSettingsWindow? _settingsWindow = null; // Track settings window instance
 
         public MainWindow()
         {
@@ -356,13 +357,6 @@ namespace WebPaper
                 // Install hooks (CRITICAL: Pass main window handle + DispatcherQueue for thread marshaling)
                 _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle, _windowHandle, _dispatcherQueue!);
 
-                // Set control mode from configuration
-                if (_config != null)
-                {
-                    _inputManager.ControlMode = _config.ControlMode;
-                    Log.Information($"Control mode set to: {_config.ControlMode}");
-                }
-
                 Log.Information("Input hooks installed successfully");
             }
             catch (Exception ex)
@@ -513,35 +507,6 @@ namespace WebPaper
             }
         }
 
-        // Keyboard shortcut handler for page refresh (Ctrl+R, F5)
-        // Using PreviewKeyDown to catch before WebView2 processes it
-        private void Window_PreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
-        {
-            try
-            {
-                // Only handle Ctrl+R and F5 shortcuts
-                // Use WinUI3-compatible keyboard state detection
-                var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
-
-                // Check if Control key is pressed (WinUI3 compatible way)
-                // GetKeyStateForCurrentThread returns CoreVirtualKeyStates
-                bool isCtrlPressed = (ctrlState & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
-
-                if ((e.Key == VirtualKey.R && isCtrlPressed) || e.Key == VirtualKey.F5)
-                {
-                    // Reload the page
-                    webView.CoreWebView2?.Reload();
-                    Log.Information("Page reloaded via keyboard shortcut");
-                    e.Handled = true; // Prevent further processing
-                }
-                // All other keys pass through normally - don't interfere with typing
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error handling keyboard shortcut");
-            }
-        }
-
         private void ShowUnifiedSettings()
         {
             try
@@ -555,6 +520,15 @@ namespace WebPaper
                 {
                     try
                     {
+                        // Prevent multiple settings windows - only open one instance
+                        if (_settingsWindow != null)
+                        {
+                            // Settings window already open - just bring it to front
+                            _settingsWindow.Activate();
+                            Log.Information("Settings window already open - activating existing instance");
+                            return;
+                        }
+
                         // Create and show unified settings window on UI thread
                         var unifiedWindow = new UnifiedSettingsWindow(
                             getConfig: () => _config ?? Models.AppConfig.CreateDefault(),
@@ -563,20 +537,6 @@ namespace WebPaper
                                 // Save configuration
                                 await _configManager.SaveConfigAsync(updatedConfig);
                                 _config = updatedConfig;
-
-                                // Update input manager control mode
-                                if (_inputManager != null)
-                                {
-                                    _inputManager.ControlMode = updatedConfig.ControlMode;
-                                    Log.Information($"InputManager control mode updated to: {updatedConfig.ControlMode}");
-                                }
-
-                                // Update performance manager
-                                if (_performanceManager != null)
-                                {
-                                    _performanceManager.IsEnabled = updatedConfig.PerformanceOptimizationEnabled;
-                                    _performanceManager.BatteryThreshold = updatedConfig.BatteryPauseThreshold;
-                                }
 
                                 Log.Information("Configuration updated from UnifiedSettingsWindow");
                             },
@@ -596,7 +556,15 @@ namespace WebPaper
                             }
                         );
 
-                        unifiedWindow.Activate();
+                        // Track the window instance and handle cleanup when closed
+                        _settingsWindow = unifiedWindow;
+                        _settingsWindow.Closed += (s, e) =>
+                        {
+                            _settingsWindow = null;
+                            Log.Information("Settings window closed and reference cleared");
+                        };
+
+                        _settingsWindow.Activate();
                         Log.Information("Unified settings window opened successfully");
                     }
                     catch (Exception ex)

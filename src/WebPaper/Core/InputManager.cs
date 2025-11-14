@@ -47,8 +47,10 @@ namespace WebPaper.Core
         // Desktop icon window (SysListView32) - cached for click forwarding
         private IntPtr _desktopIconWindow = IntPtr.Zero;
 
-        // Control mode (WebPaper Control vs Desktop Control)
-        private ControlMode _controlMode = ControlMode.WebPaperControl;
+        // Foreground window tracking for input filtering
+        private DateTime _lastForegroundCheck = DateTime.MinValue;
+        private bool _desktopIsForeground = true;
+        private const int FOREGROUND_CHECK_INTERVAL_MS = 500; // Check every 500ms
 
         /// <summary>
         /// Gets or sets whether input forwarding is enabled
@@ -70,22 +72,6 @@ namespace WebPaper.Core
         /// Gets whether hooks are currently installed
         /// </summary>
         public bool HooksInstalled => _mouseHookId != IntPtr.Zero || _keyboardHookId != IntPtr.Zero;
-
-        /// <summary>
-        /// Gets or sets the control mode
-        /// </summary>
-        public ControlMode ControlMode
-        {
-            get => _controlMode;
-            set
-            {
-                if (_controlMode != value)
-                {
-                    _controlMode = value;
-                    Console.WriteLine($"InputManager: Control mode changed to {_controlMode}");
-                }
-            }
-        }
 
         /// <summary>
         /// Installs low-level mouse and keyboard hooks
@@ -201,6 +187,79 @@ namespace WebPaper.Core
         }
 
         /// <summary>
+        /// Checks if a user application (not desktop/shell) has focus
+        /// Returns TRUE if a regular app window is focused (Chrome, Notepad, etc.)
+        /// Returns FALSE if desktop/shell is focused (allowing wallpaper input)
+        /// </summary>
+        private bool IsUserApplicationForeground()
+        {
+            try
+            {
+                // Throttle checks to avoid performance impact
+                if ((DateTime.Now - _lastForegroundCheck).TotalMilliseconds < FOREGROUND_CHECK_INTERVAL_MS)
+                {
+                    return !_desktopIsForeground; // Return cached result (inverted)
+                }
+
+                _lastForegroundCheck = DateTime.Now;
+
+                IntPtr foregroundWindow = GetForegroundWindow();
+                if (foregroundWindow == IntPtr.Zero)
+                {
+                    _desktopIsForeground = true; // No foreground = desktop visible
+                    return false;
+                }
+
+                // Get the class name of the foreground window
+                StringBuilder className = new StringBuilder(256);
+                GetClassName(foregroundWindow, className, className.Capacity);
+                string classNameStr = className.ToString();
+
+                // INVERTED LOGIC: Check if it's a KNOWN USER APPLICATION
+                // These are windows where we should NOT forward input to wallpaper
+                bool isUserApp = classNameStr.Contains("Chrome") ||           // Chrome, Edge
+                                classNameStr.Contains("MozillaWindowClass") || // Firefox
+                                classNameStr.Contains("OpusApp") ||            // Word
+                                classNameStr.Contains("XLMAIN") ||             // Excel
+                                classNameStr.Contains("Notepad") ||            // Notepad
+                                classNameStr.Contains("ApplicationFrameWindow") || // UWP apps
+                                classNameStr.Contains("ConsoleWindowClass") || // Command Prompt
+                                classNameStr.Contains("CASCADIA_HOSTING_WINDOW_CLASS"); // Windows Terminal
+
+                // Also check for top-level windows with visible title bars (likely apps)
+                if (!isUserApp && foregroundWindow != _mainWindowHandle)
+                {
+                    // Get window styles to detect regular application windows
+                    int style = GetWindowLong(foregroundWindow, GWL_STYLE);
+                    bool hasCaption = (style & (int)WS_CAPTION) != 0;
+                    bool isVisible = (style & (int)WS_VISIBLE) != 0;
+                    bool isNotChild = (style & (int)WS_CHILD) == 0;
+
+                    // If it's a visible top-level window with a caption, it's likely an app
+                    if (hasCaption && isVisible && isNotChild)
+                    {
+                        // Get window text to see if it has a meaningful title
+                        StringBuilder titleBuilder = new StringBuilder(256);
+                        int titleLength = GetWindowText(foregroundWindow, titleBuilder, titleBuilder.Capacity);
+                        if (titleLength > 0)
+                        {
+                            isUserApp = true; // Has a title = likely a user application
+                        }
+                    }
+                }
+
+                _desktopIsForeground = !isUserApp; // Cache the result
+                return isUserApp;
+            }
+            catch
+            {
+                // On error, allow input (be permissive)
+                _desktopIsForeground = true;
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Low-level mouse hook callback
         /// </summary>
         private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
@@ -210,18 +269,19 @@ namespace WebPaper.Core
                 // CRITICAL: Process quickly to avoid timeout (must complete in <200ms)
                 if (nCode >= HC_ACTION && _isEnabled && _webView != null)
                 {
+                    // CRITICAL: Check if a user application has focus - don't intercept their input
+                    if (IsUserApplicationForeground())
+                    {
+                        // A regular app (Chrome, Notepad, etc.) has focus - don't intercept
+                        return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
+                    }
+
                     // Parse mouse event
                     var hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                     uint msg = (uint)wParam.ToInt32();
 
                     // CRITICAL: Track mouse position for keyboard focus detection
                     _lastMousePosition = hookStruct.pt;
-
-                    // In Desktop Control mode, don't forward ANY mouse events to wallpaper
-                    if (_controlMode == ControlMode.DesktopControl)
-                    {
-                        return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
-                    }
 
                     bool isOverWallpaper = IsClickOnWallpaper(hookStruct.pt);
 
@@ -320,34 +380,50 @@ namespace WebPaper.Core
                 // CRITICAL: Process quickly to avoid timeout
                 if (nCode >= HC_ACTION && _isEnabled && _webView != null)
                 {
-                    // In Desktop Control mode, don't forward ANY keyboard events to wallpaper
-                    if (_controlMode == ControlMode.DesktopControl)
+                    // CRITICAL: Check if a user application has focus - don't intercept their input
+                    if (IsUserApplicationForeground())
                     {
-                        return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
-                    }
-
-                    // CRITICAL FIX: Only forward keyboard if mouse is over wallpaper!
-                    // This prevents capturing keyboard input from other apps (browser, WhatsApp, notepad, etc.)
-                    if (!_mouseOverWallpaper)
-                    {
-                        // Mouse is not over wallpaper - don't capture this keyboard input
+                        // A regular app (Chrome, Notepad, etc.) has focus - don't intercept
                         return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
                     }
 
                     // Parse keyboard event
                     int vkCode = Marshal.ReadInt32(lParam);
+                    uint msg = (uint)wParam.ToInt32();
 
-                    // Forward keyboard event to WebView2
-                    ForwardKeyboardEvent(wParam, vkCode, lParam);
+                    // CRITICAL: NEVER consume special system keys - always pass them through
+                    // These keys must work globally for Windows functionality
+                    if (IsSystemKey(vkCode))
+                    {
+                        // System keys: Windows key, Alt, Tab, Ctrl+Alt+Del, etc.
+                        // Let them pass through normally - don't forward to wallpaper
+                        return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
+                    }
 
-                    // CRITICAL FIX: CONSUME the keyboard event to prevent it from also going to desktop!
-                    // When mouse is over wallpaper, keyboard should ONLY go to webpage, NOT to desktop icons.
-                    // This prevents:
-                    // - Desktop icon search when typing (typing 'a' won't search icons starting with 'a')
-                    // - Desktop icon selection when using arrow keys
-                    // - Double input (webpage receives it once via our forwarding, not twice)
-                    // Return 1 to suppress the event from further processing.
-                    return new IntPtr(1);
+                    // Only forward keyboard if mouse is over wallpaper
+                    // This prevents interference when user is working on desktop icons or taskbar
+                    if (_mouseOverWallpaper)
+                    {
+                        // Forward keyboard event to WebView2
+                        ForwardKeyboardEvent(wParam, vkCode, lParam);
+
+                        // CRITICAL: For printable characters, consume the event to prevent desktop interference
+                        // For non-printable keys (arrows, function keys), pass them through
+                        // This allows webpage to handle typing while keeping navigation keys working globally
+                        bool isPrintableKey = (vkCode >= 0x30 && vkCode <= 0x5A) || // 0-9, A-Z
+                                            (vkCode >= 0xBA && vkCode <= 0xC0) || // Punctuation
+                                            (vkCode >= 0xDB && vkCode <= 0xDF) || // More punctuation
+                                            vkCode == 0x20; // Space
+
+                        if (isPrintableKey && msg == WM_KEYDOWN)
+                        {
+                            // Consume printable characters to prevent desktop icon search
+                            return new IntPtr(1);
+                        }
+                    }
+
+                    // For everything else, pass through
+                    return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
                 }
             }
             catch (Exception ex)
@@ -357,6 +433,32 @@ namespace WebPaper.Core
 
             // If we didn't handle it (error or not enabled), pass it through
             return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
+        }
+
+        /// <summary>
+        /// Checks if a virtual key code is a system key that should never be consumed
+        /// </summary>
+        private bool IsSystemKey(int vkCode)
+        {
+            // Windows keys
+            if (vkCode == 0x5B || vkCode == 0x5C) return true; // VK_LWIN, VK_RWIN
+
+            // Alt keys
+            if (vkCode == 0x12) return true; // VK_MENU (Alt)
+
+            // Tab key (for Alt+Tab)
+            if (vkCode == 0x09) return true; // VK_TAB
+
+            // Control keys (for Ctrl+Alt+Del, Ctrl+Esc, etc.)
+            if (vkCode == 0x11) return true; // VK_CONTROL
+
+            // Escape (for closing menus, canceling operations)
+            if (vkCode == 0x1B) return true; // VK_ESCAPE
+
+            // Function keys (F1-F12) - used for system shortcuts
+            if (vkCode >= 0x70 && vkCode <= 0x7B) return true; // VK_F1 to VK_F12
+
+            return false;
         }
 
         // Track last logged class to avoid spam
@@ -1166,6 +1268,9 @@ namespace WebPaper.Core
 
         /// <summary>
         /// Forwards keyboard event to WebView2
+        /// CRITICAL FIX: Only send WM_KEYDOWN/WM_KEYUP, NOT WM_CHAR
+        /// WebView2's message processing (TranslateMessage) will automatically generate WM_CHAR
+        /// Manually sending WM_CHAR causes character duplication
         /// </summary>
         private void ForwardKeyboardEvent(IntPtr wParam, int vkCode, IntPtr lParam)
         {
@@ -1173,42 +1278,23 @@ namespace WebPaper.Core
             {
                 uint msg = (uint)wParam.ToInt32();
 
-                // CRITICAL: Check bit 30 of lParam to detect key repeat
-                // Bit 30 = 0: First press, Bit 30 = 1: Key repeat
-                // This is the standard Windows way to detect repeats!
-                long lParamValue = lParam.ToInt64();
-                bool isRepeat = ((lParamValue >> 30) & 1) == 1;
-
                 // Send keyboard message to Chrome_WidgetWin_1
                 if (_inputHandle != IntPtr.Zero)
                 {
                     IntPtr keyWParam = new IntPtr(vkCode);
 
-                    // ALWAYS send WM_KEYDOWN/WM_KEYUP (including repeats)
-                    // This allows backspace, arrows, etc. to repeat when held
+                    // Send ONLY WM_KEYDOWN/WM_KEYUP with proper lParam
+                    // WebView2 will handle TranslateMessage internally and generate WM_CHAR automatically
+                    // This prevents character duplication that occurs when we manually send WM_CHAR
                     PostMessage(_inputHandle, msg, keyWParam, lParam);
 
-                    // CRITICAL FIX: For text input to work, we MUST send WM_CHAR messages!
-                    // WM_KEYDOWN/WM_KEYUP only send virtual key codes, but text input
-                    // requires WM_CHAR with the actual character.
-                    //
-                    // BUT: Only send WM_CHAR on the FIRST keydown (not on repeats)
-                    // This prevents the "hhheeeyyy" duplicate character issue
-                    if (msg == WM_KEYDOWN && !isRepeat)
+                    // Log keydown events for debugging (not too often to avoid spam)
+                    if (msg == WM_KEYDOWN && (vkCode >= 0x20 && vkCode <= 0x7E)) // Printable ASCII range
                     {
-                        // Convert virtual key to character
-                        char ch = VirtualKeyToChar((uint)vkCode);
-                        if (ch != '\0') // If it's a printable character
+                        // Only log every 5th keypress to reduce spam
+                        if (_eventCount % 5 == 0)
                         {
-                            // Send WM_CHAR message with the character
-                            IntPtr charWParam = new IntPtr(ch);
-                            PostMessage(_inputHandle, WM_CHAR, charWParam, IntPtr.Zero);
-
-                            // Log for debugging (only occasionally to avoid spam)
-                            if (char.IsLetterOrDigit(ch) || char.IsPunctuation(ch) || ch == ' ')
-                            {
-                                Console.WriteLine($"InputManager: Sent WM_CHAR for '{ch}' (0x{(int)ch:X2})");
-                            }
+                            Console.WriteLine($"InputManager: Forwarded WM_KEYDOWN vkCode=0x{vkCode:X2}");
                         }
                     }
                 }
@@ -1216,43 +1302,6 @@ namespace WebPaper.Core
             catch (Exception ex)
             {
                 Console.WriteLine($"InputManager: Failed to forward keyboard event - {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Converts a virtual key code to a character using current keyboard state
-        /// Returns '\0' if the key doesn't produce a character (e.g., Shift, Ctrl)
-        /// </summary>
-        private char VirtualKeyToChar(uint vkCode)
-        {
-            try
-            {
-                // Get current keyboard state (for modifiers like Shift)
-                byte[] keyboardState = new byte[256];
-                if (!GetKeyboardState(keyboardState))
-                    return '\0';
-
-                // Get scan code from virtual key
-                uint scanCode = MapVirtualKey(vkCode, 0); // MAPVK_VK_TO_VSC = 0
-
-                // Convert to Unicode character
-                StringBuilder result = new StringBuilder(5);
-                int ret = ToUnicode(vkCode, scanCode, keyboardState, result, result.Capacity, 0);
-
-                if (ret == 1) // Successfully converted to 1 character
-                {
-                    return result[0];
-                }
-                else if (ret == 2) // Dead key or multi-character (rare)
-                {
-                    return result[0]; // Return first character
-                }
-
-                return '\0'; // No character (control key, etc.)
-            }
-            catch
-            {
-                return '\0';
             }
         }
 

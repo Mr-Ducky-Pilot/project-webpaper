@@ -85,10 +85,6 @@ namespace WebPaper
                 // Load home URL
                 HomeUrlTextBox.Text = config.WallpaperUrl ?? "https://blink42.com";
 
-                // Load control mode
-                // Off = WebPaperControl (default), On = DesktopControl
-                ControlModeToggle.IsOn = config.ControlMode == ControlMode.DesktopControl;
-
                 // Load performance settings
                 PerformanceToggle.IsOn = config.PerformanceOptimizationEnabled;
                 BatterySlider.Value = config.BatteryPauseThreshold;
@@ -189,28 +185,6 @@ namespace WebPaper
             {
                 Log.Error(ex, "Failed to apply URL");
                 ShowError("Failed to apply URL: " + ex.Message);
-            }
-        }
-
-        private void ControlModeToggle_Toggled(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (_getConfig == null || _onConfigChanged == null) return;
-
-                var config = _getConfig();
-                // Off = WebPaperControl, On = DesktopControl
-                config.ControlMode = ControlModeToggle.IsOn
-                    ? ControlMode.DesktopControl
-                    : ControlMode.WebPaperControl;
-
-                _onConfigChanged(config);
-
-                Log.Information($"Control mode changed to: {config.ControlMode}");
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to change control mode");
             }
         }
 
