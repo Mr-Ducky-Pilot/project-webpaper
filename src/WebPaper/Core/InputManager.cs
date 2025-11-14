@@ -407,22 +407,22 @@ namespace WebPaper.Core
                         // Forward keyboard event to WebView2
                         ForwardKeyboardEvent(wParam, vkCode, lParam);
 
-                        // CRITICAL: For printable characters, consume the event to prevent desktop interference
-                        // For non-printable keys (arrows, function keys), pass them through
-                        // This allows webpage to handle typing while keeping navigation keys working globally
-                        bool isPrintableKey = (vkCode >= 0x30 && vkCode <= 0x5A) || // 0-9, A-Z
-                                            (vkCode >= 0xBA && vkCode <= 0xC0) || // Punctuation
-                                            (vkCode >= 0xDB && vkCode <= 0xDF) || // More punctuation
-                                            vkCode == 0x20; // Space
+                        // CRITICAL: Consume ALL keys (except system keys already filtered above)
+                        // This prevents desktop interference completely
+                        // - Printable keys: prevent desktop icon search
+                        // - Arrow keys: prevent desktop icon selection/movement
+                        // - Enter: prevent opening selected desktop icons
+                        // - Backspace/Delete: prevent file operations
+                        // All these keys should only affect the webpage when mouse is over wallpaper
 
-                        if (isPrintableKey && msg == WM_KEYDOWN)
+                        // Only consume on keydown to allow keyup to propagate normally
+                        if (msg == WM_KEYDOWN)
                         {
-                            // Consume printable characters to prevent desktop icon search
-                            return new IntPtr(1);
+                            return new IntPtr(1); // Consume the event
                         }
                     }
 
-                    // For everything else, pass through
+                    // For everything else (mouse not over wallpaper, or keyup events), pass through
                     return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
                 }
             }
@@ -1268,9 +1268,9 @@ namespace WebPaper.Core
 
         /// <summary>
         /// Forwards keyboard event to WebView2
-        /// CRITICAL FIX: Only send WM_KEYDOWN/WM_KEYUP, NOT WM_CHAR
-        /// WebView2's message processing (TranslateMessage) will automatically generate WM_CHAR
-        /// Manually sending WM_CHAR causes character duplication
+        /// CRITICAL: Must send both WM_KEYDOWN/WM_KEYUP AND WM_CHAR for text input to work
+        /// When manually posting messages, TranslateMessage doesn't run, so we must generate WM_CHAR ourselves
+        /// Use SendMessage (synchronous) to prevent race conditions and character duplication
         /// </summary>
         private void ForwardKeyboardEvent(IntPtr wParam, int vkCode, IntPtr lParam)
         {
@@ -1283,18 +1283,29 @@ namespace WebPaper.Core
                 {
                     IntPtr keyWParam = new IntPtr(vkCode);
 
-                    // Send ONLY WM_KEYDOWN/WM_KEYUP with proper lParam
-                    // WebView2 will handle TranslateMessage internally and generate WM_CHAR automatically
-                    // This prevents character duplication that occurs when we manually send WM_CHAR
-                    PostMessage(_inputHandle, msg, keyWParam, lParam);
+                    // CRITICAL: Use SendMessage (synchronous) not PostMessage (asynchronous)
+                    // This prevents message reordering and duplication issues
 
-                    // Log keydown events for debugging (not too often to avoid spam)
-                    if (msg == WM_KEYDOWN && (vkCode >= 0x20 && vkCode <= 0x7E)) // Printable ASCII range
+                    // Step 1: Send WM_KEYDOWN or WM_KEYUP
+                    SendMessage(_inputHandle, msg, keyWParam, lParam);
+
+                    // Step 2: For WM_KEYDOWN, also generate and send WM_CHAR for printable characters
+                    // This is necessary because TranslateMessage doesn't run when we manually inject messages
+                    if (msg == WM_KEYDOWN)
                     {
-                        // Only log every 5th keypress to reduce spam
-                        if (_eventCount % 5 == 0)
+                        // Convert virtual key to character
+                        char ch = VirtualKeyToChar((uint)vkCode);
+                        if (ch != '\0') // If it's a printable character
                         {
-                            Console.WriteLine($"InputManager: Forwarded WM_KEYDOWN vkCode=0x{vkCode:X2}");
+                            // Send WM_CHAR message AFTER WM_KEYDOWN
+                            IntPtr charWParam = new IntPtr(ch);
+                            SendMessage(_inputHandle, WM_CHAR, charWParam, IntPtr.Zero);
+
+                            // Log for debugging
+                            if (_eventCount % 10 == 0)
+                            {
+                                Console.WriteLine($"InputManager: Sent '{ch}' (vk=0x{vkCode:X2})");
+                            }
                         }
                     }
                 }
@@ -1302,6 +1313,43 @@ namespace WebPaper.Core
             catch (Exception ex)
             {
                 Console.WriteLine($"InputManager: Failed to forward keyboard event - {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Converts a virtual key code to a character using current keyboard state
+        /// Returns '\0' if the key doesn't produce a character (e.g., Shift, Ctrl, Arrow keys)
+        /// </summary>
+        private char VirtualKeyToChar(uint vkCode)
+        {
+            try
+            {
+                // Get current keyboard state (for modifiers like Shift, Caps Lock)
+                byte[] keyboardState = new byte[256];
+                if (!GetKeyboardState(keyboardState))
+                    return '\0';
+
+                // Get scan code from virtual key
+                uint scanCode = MapVirtualKey(vkCode, 0); // MAPVK_VK_TO_VSC = 0
+
+                // Convert to Unicode character
+                StringBuilder result = new StringBuilder(5);
+                int ret = ToUnicode(vkCode, scanCode, keyboardState, result, result.Capacity, 0);
+
+                if (ret == 1) // Successfully converted to 1 character
+                {
+                    return result[0];
+                }
+                else if (ret == 2) // Dead key or multi-character (rare)
+                {
+                    return result[0]; // Return first character
+                }
+
+                return '\0'; // No character (control key, arrow key, etc.)
+            }
+            catch
+            {
+                return '\0';
             }
         }
 
