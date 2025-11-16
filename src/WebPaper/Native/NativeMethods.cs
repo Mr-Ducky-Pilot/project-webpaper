@@ -614,8 +614,13 @@ namespace WebPaper.Native
 
         // MessageBox icon constants
         public const uint MB_ICONERROR = 0x00000010;
+        public const uint MB_ICONQUESTION = 0x00000020;
         public const uint MB_ICONWARNING = 0x00000030;
         public const uint MB_ICONINFORMATION = 0x00000040;
+
+        // MessageBox return values
+        public const int IDYES = 6;
+        public const int IDNO = 7;
 
         #endregion
     }

@@ -83,12 +83,34 @@ namespace WebPaper
             {
                 Log.Information("OnLaunched called");
 
+                // Handle command-line arguments from desktop context menu
+                string[] commandArgs = Environment.GetCommandLineArgs();
+                if (commandArgs.Length > 1)
+                {
+                    string argument = commandArgs[1].ToLower();
+                    Log.Information($"Processing command-line argument: {argument}");
+
+                    // Handle special installation commands
+                    if (argument == "--install-context-menu")
+                    {
+                        HandleContextMenuInstallation();
+                        Current.Exit();
+                        return;
+                    }
+                    else if (argument == "--uninstall-context-menu")
+                    {
+                        HandleContextMenuUninstallation();
+                        Current.Exit();
+                        return;
+                    }
+                }
+
                 // Check if WebView2 Runtime is available
                 EnsureWebView2Runtime();
 
                 // Create and activate the main window
                 Log.Information("Creating MainWindow");
-                m_window = new MainWindow();
+                m_window = new MainWindow(commandArgs.Length > 1 ? commandArgs[1] : null);
                 m_window.Activate();
 
                 Log.Information("WebPaper started successfully");
@@ -159,6 +181,76 @@ namespace WebPaper
             {
                 Log.Error(ex, "Failed to show error dialog");
                 // If we can't even show the error, just log it
+            }
+        }
+
+        /// <summary>
+        /// Handles context menu installation request
+        /// </summary>
+        private void HandleContextMenuInstallation()
+        {
+            try
+            {
+                var contextMenuManager = new Services.ContextMenuManager();
+                if (contextMenuManager.InstallContextMenu())
+                {
+                    Log.Information("Desktop context menu installed successfully");
+                    Native.NativeMethods.MessageBox(
+                        IntPtr.Zero,
+                        "WebPaper has been added to your desktop right-click menu!\n\nRight-click on your desktop to see the WebPaper menu.",
+                        "WebPaper - Context Menu Installed",
+                        Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONINFORMATION
+                    );
+                }
+                else
+                {
+                    Log.Error("Failed to install desktop context menu");
+                    Native.NativeMethods.MessageBox(
+                        IntPtr.Zero,
+                        "Failed to install desktop context menu.\n\nPlease make sure you run as Administrator.",
+                        "WebPaper - Installation Failed",
+                        Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONERROR
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error installing context menu");
+            }
+        }
+
+        /// <summary>
+        /// Handles context menu uninstallation request
+        /// </summary>
+        private void HandleContextMenuUninstallation()
+        {
+            try
+            {
+                var contextMenuManager = new Services.ContextMenuManager();
+                if (contextMenuManager.UninstallContextMenu())
+                {
+                    Log.Information("Desktop context menu uninstalled successfully");
+                    Native.NativeMethods.MessageBox(
+                        IntPtr.Zero,
+                        "WebPaper has been removed from your desktop right-click menu.",
+                        "WebPaper - Context Menu Uninstalled",
+                        Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONINFORMATION
+                    );
+                }
+                else
+                {
+                    Log.Error("Failed to uninstall desktop context menu");
+                    Native.NativeMethods.MessageBox(
+                        IntPtr.Zero,
+                        "Failed to uninstall desktop context menu.\n\nPlease make sure you run as Administrator.",
+                        "WebPaper - Uninstallation Failed",
+                        Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONERROR
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error uninstalling context menu");
             }
         }
     }

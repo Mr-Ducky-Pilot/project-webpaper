@@ -146,6 +146,39 @@
                     </TextBlock>
                 </StackPanel>
 
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                <!-- Desktop Context Menu Section -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Desktop Integration"
+                              FontSize="18"
+                              FontWeight="SemiBold"/>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Add WebPaper to desktop right-click menu for quick access"
+                                  FontSize="14"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                  TextWrapping="Wrap"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button x:Name="InstallContextMenuButton"
+                                   Content="Add to Context Menu"
+                                   Click="InstallContextMenuButton_Click"
+                                   MinWidth="150"/>
+                            <Button x:Name="UninstallContextMenuButton"
+                                   Content="Remove from Context Menu"
+                                   Click="UninstallContextMenuButton_Click"
+                                   MinWidth="150"
+                                   Style="{ThemeResource AccentButtonStyle}"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="ContextMenuStatusText"
+                                  Text="Status: Not installed"
+                                  FontSize="12"
+                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+
             </StackPanel>
         </ScrollViewer>
 

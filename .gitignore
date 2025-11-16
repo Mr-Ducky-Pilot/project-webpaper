@@ -110,3 +110,6 @@ logs/
 *.bak
 *.backup
 lively-reference/
+
+
+.claude

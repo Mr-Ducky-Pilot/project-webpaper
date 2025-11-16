@@ -37,13 +37,19 @@ namespace WebPaper
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
         private UnifiedSettingsWindow? _settingsWindow = null; // Track settings window instance
 
-        public MainWindow()
+        public MainWindow(string? commandArgument = null)
         {
             this.InitializeComponent();
 
             // CRITICAL: Capture DispatcherQueue on UI thread for thread marshaling
             // This is needed to execute WebView2 operations from background threads (like input hooks)
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+
+            // Process command-line argument from desktop context menu
+            if (!string.IsNullOrEmpty(commandArgument))
+            {
+                ProcessCommand(commandArgument);
+            }
 
             // Initialize window handle and AppWindow
             _windowHandle = WindowNative.GetWindowHandle(this);
@@ -631,6 +637,70 @@ namespace WebPaper
             catch (Exception ex)
             {
                 Log.Error(ex, "Error toggling wallpaper");
+            }
+        }
+
+        /// <summary>
+        /// Processes command-line arguments from desktop context menu
+        /// </summary>
+        private void ProcessCommand(string command)
+        {
+            Log.Information($"Processing desktop context menu command: {command}");
+
+            // Delay command processing until after initialization
+            _dispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                System.Threading.Thread.Sleep(1000); // Wait for app to fully initialize
+
+                switch (command.ToLower())
+                {
+                    case "--settings":
+                        ShowSettings();
+                        break;
+                    case "--reload":
+                        ReloadWallpaper();
+                        break;
+                    case "--home":
+                        GoToHomePage();
+                        break;
+                    case "--toggle":
+                        _dispatcherQueue?.TryEnqueue(() => ToggleWallpaperAsync());
+                        break;
+                    case "--about":
+                        ShowAbout();
+                        break;
+                    default:
+                        Log.Warning($"Unknown command: {command}");
+                        break;
+                }
+            });
+        }
+
+        private void ReloadWallpaper()
+        {
+            try
+            {
+                if (webView?.CoreWebView2 != null)
+                {
+                    webView.CoreWebView2.Reload();
+                    Log.Information("Wallpaper reloaded via desktop context menu");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error reloading wallpaper from context menu");
+            }
+        }
+
+        private void ToggleWallpaperAsync()
+        {
+            try
+            {
+                ToggleWallpaper();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error toggling wallpaper from context menu");
             }
         }
 

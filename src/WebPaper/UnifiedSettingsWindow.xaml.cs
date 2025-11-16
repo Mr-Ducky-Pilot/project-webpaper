@@ -89,10 +89,37 @@ namespace WebPaper
                 PerformanceToggle.IsOn = config.PerformanceOptimizationEnabled;
                 BatterySlider.Value = config.BatteryPauseThreshold;
                 BatteryValueText.Text = $"{config.BatteryPauseThreshold}%";
+
+                // Check context menu installation status
+                UpdateContextMenuStatus();
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to load settings");
+            }
+        }
+
+        /// <summary>
+        /// Updates the context menu installation status display
+        /// </summary>
+        private void UpdateContextMenuStatus()
+        {
+            try
+            {
+                var contextMenuManager = new Services.ContextMenuManager();
+                bool isInstalled = contextMenuManager.IsContextMenuInstalled();
+
+                ContextMenuStatusText.Text = isInstalled
+                    ? "Status: Installed ✓"
+                    : "Status: Not installed";
+
+                InstallContextMenuButton.IsEnabled = !isInstalled;
+                UninstallContextMenuButton.IsEnabled = isInstalled;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to check context menu status");
+                ContextMenuStatusText.Text = "Status: Unknown";
             }
         }
 
@@ -319,6 +346,108 @@ namespace WebPaper
             public int Width { get; set; }
             public int Height { get; set; }
             public bool IsPrimary { get; set; }
+        }
+
+        /// <summary>
+        /// Handles install context menu button click
+        /// </summary>
+        private void InstallContextMenuButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Check if already running as administrator
+                if (!Services.ContextMenuManager.IsAdministrator())
+                {
+                    // Show info and restart as admin
+                    var result = Native.NativeMethods.MessageBox(
+                        IntPtr.Zero,
+                        "Installing the desktop context menu requires administrator privileges.\n\nWebPaper will restart with administrator rights. Continue?",
+                        "WebPaper - Administrator Required",
+                        Native.NativeMethods.MB_YESNO | Native.NativeMethods.MB_ICONQUESTION
+                    );
+
+                    if (result == Native.NativeMethods.IDYES)
+                    {
+                        // Restart as administrator with install flag
+                        if (Services.ContextMenuManager.RestartAsAdministrator("--install-context-menu"))
+                        {
+                            // Close current window
+                            this.Close();
+                        }
+                    }
+                }
+                else
+                {
+                    // Already admin, install directly
+                    var contextMenuManager = new Services.ContextMenuManager();
+                    if (contextMenuManager.InstallContextMenu())
+                    {
+                        UpdateContextMenuStatus();
+                        Native.NativeMethods.MessageBox(
+                            IntPtr.Zero,
+                            "WebPaper has been added to your desktop right-click menu!",
+                            "WebPaper - Context Menu Installed",
+                            Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONINFORMATION
+                        );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to install context menu");
+                ShowError("Failed to install context menu: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Handles uninstall context menu button click
+        /// </summary>
+        private void UninstallContextMenuButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Check if already running as administrator
+                if (!Services.ContextMenuManager.IsAdministrator())
+                {
+                    // Show info and restart as admin
+                    var result = Native.NativeMethods.MessageBox(
+                        IntPtr.Zero,
+                        "Uninstalling the desktop context menu requires administrator privileges.\n\nWebPaper will restart with administrator rights. Continue?",
+                        "WebPaper - Administrator Required",
+                        Native.NativeMethods.MB_YESNO | Native.NativeMethods.MB_ICONQUESTION
+                    );
+
+                    if (result == Native.NativeMethods.IDYES)
+                    {
+                        // Restart as administrator with uninstall flag
+                        if (Services.ContextMenuManager.RestartAsAdministrator("--uninstall-context-menu"))
+                        {
+                            // Close current window
+                            this.Close();
+                        }
+                    }
+                }
+                else
+                {
+                    // Already admin, uninstall directly
+                    var contextMenuManager = new Services.ContextMenuManager();
+                    if (contextMenuManager.UninstallContextMenu())
+                    {
+                        UpdateContextMenuStatus();
+                        Native.NativeMethods.MessageBox(
+                            IntPtr.Zero,
+                            "WebPaper has been removed from your desktop right-click menu.",
+                            "WebPaper - Context Menu Uninstalled",
+                            Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONINFORMATION
+                        );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to uninstall context menu");
+                ShowError("Failed to uninstall context menu: " + ex.Message);
+            }
         }
     }
 }
