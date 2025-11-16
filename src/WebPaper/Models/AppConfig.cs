@@ -53,6 +53,11 @@ namespace WebPaper.Models
         public DateTime? LastLaunchDate { get; set; }
 
         /// <summary>
+        /// Preferred monitor index for wallpaper display (0 = Primary, 1+ = Secondary monitors)
+        /// </summary>
+        public int PreferredMonitorIndex { get; set; } = 0;
+
+        /// <summary>
         /// Creates a default configuration
         /// </summary>
         public static AppConfig CreateDefault()
@@ -66,7 +71,8 @@ namespace WebPaper.Models
                 BatteryPauseThreshold = 20,
                 ShowPauseNotifications = false,
                 IsFirstRun = true,
-                LastLaunchDate = null
+                LastLaunchDate = null,
+                PreferredMonitorIndex = 0 // Default to primary monitor
             };
         }
 

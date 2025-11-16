@@ -75,28 +75,49 @@ namespace WebPaper
                 _appWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
                 _appWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
 
-                // CRITICAL: Get PRIMARY monitor dimensions (monitor with taskbar)
-                // Use GetSystemMetrics to get actual primary monitor size
-                int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
-                int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
+                // Use MonitorManager to get monitor dimensions based on user preference
+                var monitorManager = new Services.MonitorManager();
+                Services.MonitorManager.MonitorInfo? selectedMonitor = null;
 
-                Log.Information($"Primary monitor dimensions: {screenWidth}x{screenHeight}");
+                // Get preferred monitor from config (default to primary if not set)
+                int preferredIndex = _config?.PreferredMonitorIndex ?? 0;
+                selectedMonitor = monitorManager.GetMonitorByIndex(preferredIndex);
 
-                // Resize window to cover primary screen
+                // Fallback to primary monitor if preferred is not available
+                if (selectedMonitor == null)
+                {
+                    selectedMonitor = monitorManager.GetPrimaryMonitor();
+                    Log.Warning($"Preferred monitor {preferredIndex} not found, using primary monitor");
+                }
+
+                if (selectedMonitor == null)
+                {
+                    Log.Error("No monitors detected! Using fallback dimensions.");
+                    // Fallback to default screen dimensions
+                    int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
+                    int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
+                    _appWindow.Resize(new SizeInt32 { Width = screenWidth, Height = screenHeight });
+                    _appWindow.Move(new PointInt32 { X = 0, Y = 0 });
+                    return;
+                }
+
+                Log.Information($"Using monitor: {selectedMonitor}");
+
+                // Resize window to cover selected monitor
                 _appWindow.Resize(new SizeInt32
                 {
-                    Width = screenWidth,
-                    Height = screenHeight
+                    Width = selectedMonitor.Width,
+                    Height = selectedMonitor.Height
                 });
 
-                // Move window to origin (0, 0) of primary monitor
+                // Move window to selected monitor position
                 _appWindow.Move(new PointInt32
                 {
-                    X = 0,
-                    Y = 0
+                    X = selectedMonitor.Left,
+                    Y = selectedMonitor.Top
                 });
 
-                Log.Information($"Window positioned at (0, 0) with size {screenWidth}x{screenHeight}");
+                Log.Information($"Window positioned at ({selectedMonitor.Left}, {selectedMonitor.Top}) with size {selectedMonitor.Width}x{selectedMonitor.Height}");
             }
             catch (Exception ex)
             {
@@ -306,21 +327,49 @@ namespace WebPaper
                     Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
                 );
 
-                // Position window to fill PRIMARY desktop
-                // Use GetSystemMetrics to get PRIMARY monitor dimensions
-                int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
-                int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
+                // Position window to fill selected monitor
+                // Use MonitorManager to get monitor dimensions based on user preference
+                var monitorManager = new Services.MonitorManager();
+                int preferredIndex = _config?.PreferredMonitorIndex ?? 0;
+                var selectedMonitor = monitorManager.GetMonitorByIndex(preferredIndex);
 
-                // Position window at origin (0, 0) with primary monitor size
-                Native.NativeMethods.SetWindowPos(
-                    _windowHandle,
-                    IntPtr.Zero,
-                    0, 0,
-                    screenWidth, screenHeight,
-                    Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
-                    Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW |
-                    Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
-                );
+                // Fallback to primary monitor if preferred is not available
+                if (selectedMonitor == null)
+                {
+                    selectedMonitor = monitorManager.GetPrimaryMonitor();
+                }
+
+                if (selectedMonitor != null)
+                {
+                    // Position window at selected monitor with its size
+                    Native.NativeMethods.SetWindowPos(
+                        _windowHandle,
+                        IntPtr.Zero,
+                        selectedMonitor.Left, selectedMonitor.Top,
+                        selectedMonitor.Width, selectedMonitor.Height,
+                        Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
+                        Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW |
+                        Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
+                    );
+
+                    Log.Information($"Window positioned on monitor: {selectedMonitor}");
+                }
+                else
+                {
+                    // Fallback to default screen dimensions
+                    int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
+                    int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
+                    Native.NativeMethods.SetWindowPos(
+                        _windowHandle,
+                        IntPtr.Zero,
+                        0, 0,
+                        screenWidth, screenHeight,
+                        Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
+                        Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW |
+                        Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
+                    );
+                    Log.Warning("Using fallback monitor dimensions");
+                }
 
                 // Explicitly show the window
                 Native.NativeMethods.ShowWindow(_windowHandle, Native.NativeMethods.ShowWindowCommands.SW_SHOW);

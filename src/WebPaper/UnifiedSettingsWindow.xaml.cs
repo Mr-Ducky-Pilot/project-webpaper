@@ -127,7 +127,9 @@ namespace WebPaper
         {
             try
             {
-                var monitors = GetMonitorInformation();
+                // Use new MonitorManager service
+                var monitorManager = new Services.MonitorManager();
+                var monitors = monitorManager.GetAllMonitors();
                 var sb = new StringBuilder();
 
                 sb.AppendLine($"{monitors.Count} monitor(s) detected");
@@ -139,10 +141,14 @@ namespace WebPaper
                     sb.AppendLine($"Monitor {i + 1}{(monitor.IsPrimary ? " (Primary)" : "")}:");
                     sb.AppendLine($"  Resolution: {monitor.Width} x {monitor.Height}");
                     sb.AppendLine($"  Position: ({monitor.Left}, {monitor.Top})");
+                    sb.AppendLine($"  Device: {monitor.DeviceName}");
                     if (i < monitors.Count - 1) sb.AppendLine();
                 }
 
                 MonitorInfoText.Text = sb.ToString();
+
+                // Populate monitor selection ComboBox
+                LoadMonitorSelection(monitors);
             }
             catch (Exception ex)
             {
@@ -151,32 +157,44 @@ namespace WebPaper
             }
         }
 
-        private List<MonitorInfo> GetMonitorInformation()
+        private void LoadMonitorSelection(List<Services.MonitorManager.MonitorInfo> monitors)
         {
-            var monitors = new List<MonitorInfo>();
+            try
+            {
+                if (MonitorSelectionComboBox == null) return;
 
-            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero,
-                delegate (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData)
+                MonitorSelectionComboBox.Items.Clear();
+
+                foreach (var monitor in monitors)
                 {
-                    MONITORINFO mi = new MONITORINFO();
-                    mi.cbSize = Marshal.SizeOf(mi);
+                    string displayName = monitor.IsPrimary
+                        ? $"Monitor {monitor.Index + 1} (Primary) - {monitor.Width}x{monitor.Height}"
+                        : $"Monitor {monitor.Index + 1} - {monitor.Width}x{monitor.Height}";
 
-                    if (GetMonitorInfo(hMonitor, ref mi))
+                    MonitorSelectionComboBox.Items.Add(displayName);
+                }
+
+                // Select current monitor from config
+                if (_getConfig != null)
+                {
+                    var config = _getConfig();
+                    int selectedIndex = config.PreferredMonitorIndex;
+
+                    // Validate index is within range
+                    if (selectedIndex >= 0 && selectedIndex < monitors.Count)
                     {
-                        monitors.Add(new MonitorInfo
-                        {
-                            Left = mi.rcMonitor.left,
-                            Top = mi.rcMonitor.top,
-                            Width = mi.rcMonitor.right - mi.rcMonitor.left,
-                            Height = mi.rcMonitor.bottom - mi.rcMonitor.top,
-                            IsPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0
-                        });
+                        MonitorSelectionComboBox.SelectedIndex = selectedIndex;
                     }
-
-                    return true;
-                }, IntPtr.Zero);
-
-            return monitors;
+                    else
+                    {
+                        MonitorSelectionComboBox.SelectedIndex = 0; // Default to primary
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to load monitor selection");
+            }
         }
 
         private void ApplyUrlButton_Click(object sender, RoutedEventArgs e)
@@ -310,42 +328,42 @@ namespace WebPaper
             await dialog.ShowAsync();
         }
 
-        // P/Invoke for monitor detection
-        [StructLayout(LayoutKind.Sequential)]
-        private struct RECT
+        /// <summary>
+        /// Handles monitor selection change
+        /// </summary>
+        private void MonitorSelectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            public int left;
-            public int top;
-            public int right;
-            public int bottom;
+            try
+            {
+                if (_getConfig == null || _onConfigChanged == null) return;
+                if (MonitorSelectionComboBox.SelectedIndex < 0) return;
+
+                var config = _getConfig();
+                config.PreferredMonitorIndex = MonitorSelectionComboBox.SelectedIndex;
+                _onConfigChanged(config);
+
+                Log.Information($"Monitor selection changed to index: {MonitorSelectionComboBox.SelectedIndex}");
+
+                // Show notification that app restart is recommended
+                ShowRestartNotification();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to update monitor selection");
+            }
         }
 
-        [StructLayout(LayoutKind.Sequential)]
-        private struct MONITORINFO
+        private async void ShowRestartNotification()
         {
-            public int cbSize;
-            public RECT rcMonitor;
-            public RECT rcWork;
-            public uint dwFlags;
-        }
+            var dialog = new ContentDialog
+            {
+                Title = "Monitor Changed",
+                Content = "Monitor selection has been saved. Please restart WebPaper for changes to take effect.",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot
+            };
 
-        private const int MONITORINFOF_PRIMARY = 0x00000001;
-
-        private delegate bool MonitorEnumDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
-
-        [DllImport("user32.dll")]
-        private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
-
-        [DllImport("user32.dll")]
-        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
-
-        private class MonitorInfo
-        {
-            public int Left { get; set; }
-            public int Top { get; set; }
-            public int Width { get; set; }
-            public int Height { get; set; }
-            public bool IsPrimary { get; set; }
+            await dialog.ShowAsync();
         }
 
         /// <summary>

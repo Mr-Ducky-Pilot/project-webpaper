@@ -109,10 +109,22 @@
                     <TextBlock Text="Display Information"
                               FontSize="18"
                               FontWeight="SemiBold"/>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Choose which monitor to display wallpaper on:"
+                                  FontSize="14"
+                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <ComboBox x:Name="MonitorSelectionComboBox"
+                                 MinWidth="300"
+                                 SelectionChanged="MonitorSelectionComboBox_SelectionChanged"
+                                 HorizontalAlignment="Left"/>
+                    </StackPanel>
+
                     <TextBlock x:Name="MonitorInfoText"
                               Text="Loading monitor information..."
                               TextWrapping="Wrap"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                              FontSize="12"
+                              Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                 </StackPanel>
 
                 <!-- About Section -->
