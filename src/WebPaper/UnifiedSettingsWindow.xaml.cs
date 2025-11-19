@@ -344,8 +344,9 @@ namespace WebPaper
 
                 Log.Information($"Monitor selection changed to index: {MonitorSelectionComboBox.SelectedIndex}");
 
-                // Show notification that app restart is recommended
-                ShowRestartNotification();
+                // Show restart button and note
+                RestartAppButton.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+                MonitorChangeNote.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
             }
             catch (Exception ex)
             {
@@ -353,17 +354,41 @@ namespace WebPaper
             }
         }
 
-        private async void ShowRestartNotification()
+        /// <summary>
+        /// Handles restart app button click - restarts WebPaper
+        /// </summary>
+        private void RestartAppButton_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new ContentDialog
+            try
             {
-                Title = "Monitor Changed",
-                Content = "Monitor selection has been saved. Please restart WebPaper for changes to take effect.",
-                CloseButtonText = "OK",
-                XamlRoot = this.Content.XamlRoot
-            };
+                Log.Information("User requested app restart for monitor change");
 
-            await dialog.ShowAsync();
+                // Get the current executable path
+                string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
+
+                if (!string.IsNullOrEmpty(exePath))
+                {
+                    // Start a new instance
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        UseShellExecute = true
+                    });
+
+                    // Exit current instance
+                    Microsoft.UI.Xaml.Application.Current.Exit();
+                }
+                else
+                {
+                    Log.Error("Could not determine executable path for restart");
+                    ShowError("Could not restart WebPaper. Please restart manually.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to restart app");
+                ShowError($"Failed to restart: {ex.Message}");
+            }
         }
 
         /// <summary>

@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using System;
 using System.IO;
+using System.Threading;
 using Serilog;
 using CoreWebView2Environment = Microsoft.Web.WebView2.Core.CoreWebView2Environment;
 
@@ -12,6 +13,8 @@ namespace WebPaper
     public partial class App : Application
     {
         private Window? m_window;
+        private static Mutex? _singleInstanceMutex;
+        private const string MUTEX_NAME = "WebPaper_SingleInstance_Mutex";
 
         /// <summary>
         /// Initializes the singleton application object.
@@ -85,6 +88,36 @@ namespace WebPaper
 
                 // Handle command-line arguments from desktop context menu
                 string[] commandArgs = Environment.GetCommandLineArgs();
+
+                // Check for special commands that don't need single-instance check
+                bool isSpecialCommand = false;
+                if (commandArgs.Length > 1)
+                {
+                    string argument = commandArgs[1].ToLower();
+                    isSpecialCommand = argument == "--install-context-menu" ||
+                                      argument == "--uninstall-context-menu";
+                }
+
+                // Single instance check (skip for special installation commands)
+                if (!isSpecialCommand)
+                {
+                    bool createdNew;
+                    _singleInstanceMutex = new Mutex(true, MUTEX_NAME, out createdNew);
+
+                    if (!createdNew)
+                    {
+                        // Another instance is already running
+                        Log.Information("Another instance of WebPaper is already running. Exiting.");
+                        Native.NativeMethods.MessageBox(
+                            IntPtr.Zero,
+                            "WebPaper is already running!\n\nCheck your system tray for the WebPaper icon.",
+                            "WebPaper",
+                            Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONINFORMATION
+                        );
+                        Current.Exit();
+                        return;
+                    }
+                }
                 if (commandArgs.Length > 1)
                 {
                     string argument = commandArgs[1].ToLower();

@@ -139,8 +139,17 @@
                                     MinHeight="52"
                                     FontSize="16"
                                     Foreground="#FF1F2937"
+                                    Background="White"
+                                    BorderBrush="#FFD1D5DB"
+                                    BorderThickness="1"
                                     CornerRadius="8"
-                                    TextChanged="UrlTextBox_TextChanged"/>
+                                    TextChanged="UrlTextBox_TextChanged">
+                                <TextBox.Resources>
+                                    <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#FF9CA3AF"/>
+                                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="#FF9CA3AF"/>
+                                    <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="#FF9CA3AF"/>
+                                </TextBox.Resources>
+                            </TextBox>
 
                             <TextBlock x:Name="UrlValidationText"
                                       Foreground="#FFDC2626"

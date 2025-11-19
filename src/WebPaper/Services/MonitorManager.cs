@@ -135,16 +135,45 @@ namespace WebPaper.Services
         public MonitorInfo? GetPrimaryMonitor()
         {
             var monitors = GetAllMonitors();
-            return monitors.Find(m => m.IsPrimary);
+            var primary = monitors.Find(m => m.IsPrimary);
+
+            if (primary == null && monitors.Count > 0)
+            {
+                // Fallback: if no primary flag detected, assume first monitor at (0,0) is primary
+                primary = monitors.Find(m => m.Left == 0 && m.Top == 0);
+                if (primary != null)
+                {
+                    Log.Warning("Primary flag not detected, using monitor at (0,0) as primary");
+                }
+                else
+                {
+                    // Last resort: use first monitor
+                    primary = monitors[0];
+                    Log.Warning("No monitor at (0,0), using first detected monitor as primary");
+                }
+            }
+
+            Log.Information($"GetPrimaryMonitor returning: {primary}");
+            return primary;
         }
 
         /// <summary>
         /// Gets monitor by index (0-based)
+        /// Index 0 is always primary after sorting
         /// </summary>
         public MonitorInfo? GetMonitorByIndex(int index)
         {
             var monitors = GetAllMonitors();
-            return index >= 0 && index < monitors.Count ? monitors[index] : null;
+
+            if (index < 0 || index >= monitors.Count)
+            {
+                Log.Warning($"Monitor index {index} out of range (0-{monitors.Count - 1}), using primary");
+                return GetPrimaryMonitor();
+            }
+
+            var monitor = monitors[index];
+            Log.Information($"GetMonitorByIndex({index}) returning: {monitor}");
+            return monitor;
         }
 
         /// <summary>

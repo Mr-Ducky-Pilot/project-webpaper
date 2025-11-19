@@ -36,6 +36,7 @@ namespace WebPaper
         private bool _wallpaperEnabled = true;
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
         private UnifiedSettingsWindow? _settingsWindow = null; // Track settings window instance
+        private string? _pendingCommand = null; // Store command to execute after initialization
 
         public MainWindow(string? commandArgument = null)
         {
@@ -45,10 +46,11 @@ namespace WebPaper
             // This is needed to execute WebView2 operations from background threads (like input hooks)
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
-            // Process command-line argument from desktop context menu
+            // Store command-line argument to process after initialization
             if (!string.IsNullOrEmpty(commandArgument))
             {
-                ProcessCommand(commandArgument);
+                _pendingCommand = commandArgument;
+                Log.Information($"Stored pending command: {commandArgument}");
             }
 
             // Initialize window handle and AppWindow
@@ -75,49 +77,42 @@ namespace WebPaper
                 _appWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
                 _appWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
 
-                // Use MonitorManager to get monitor dimensions based on user preference
+                // NOTE: Initial window positioning uses primary monitor since config isn't loaded yet
+                // The actual positioning based on user preference happens in AttachToDesktop()
+                // after configuration is loaded
+
+                // Get primary monitor using MonitorManager
                 var monitorManager = new Services.MonitorManager();
-                Services.MonitorManager.MonitorInfo? selectedMonitor = null;
+                var primaryMonitor = monitorManager.GetPrimaryMonitor();
 
-                // Get preferred monitor from config (default to primary if not set)
-                int preferredIndex = _config?.PreferredMonitorIndex ?? 0;
-                selectedMonitor = monitorManager.GetMonitorByIndex(preferredIndex);
-
-                // Fallback to primary monitor if preferred is not available
-                if (selectedMonitor == null)
+                int screenWidth, screenHeight;
+                if (primaryMonitor != null)
                 {
-                    selectedMonitor = monitorManager.GetPrimaryMonitor();
-                    Log.Warning($"Preferred monitor {preferredIndex} not found, using primary monitor");
+                    screenWidth = primaryMonitor.Width;
+                    screenHeight = primaryMonitor.Height;
+                    Log.Information($"Initial setup using primary monitor: {screenWidth}x{screenHeight}");
+                }
+                else
+                {
+                    // Fallback to GetSystemMetrics
+                    screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
+                    screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
+                    Log.Warning($"No primary monitor found, using fallback: {screenWidth}x{screenHeight}");
                 }
 
-                if (selectedMonitor == null)
-                {
-                    Log.Error("No monitors detected! Using fallback dimensions.");
-                    // Fallback to default screen dimensions
-                    int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
-                    int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
-                    _appWindow.Resize(new SizeInt32 { Width = screenWidth, Height = screenHeight });
-                    _appWindow.Move(new PointInt32 { X = 0, Y = 0 });
-                    return;
-                }
-
-                Log.Information($"Using monitor: {selectedMonitor}");
-
-                // Resize window to cover selected monitor
+                // Resize window to cover primary screen initially
                 _appWindow.Resize(new SizeInt32
                 {
-                    Width = selectedMonitor.Width,
-                    Height = selectedMonitor.Height
+                    Width = screenWidth,
+                    Height = screenHeight
                 });
 
-                // Move window to selected monitor position
+                // Move window to origin (0, 0) - primary monitor is always at origin
                 _appWindow.Move(new PointInt32
                 {
-                    X = selectedMonitor.Left,
-                    Y = selectedMonitor.Top
+                    X = 0,
+                    Y = 0
                 });
-
-                Log.Information($"Window positioned at ({selectedMonitor.Left}, {selectedMonitor.Top}) with size {selectedMonitor.Width}x{selectedMonitor.Height}");
             }
             catch (Exception ex)
             {
@@ -173,6 +168,14 @@ namespace WebPaper
                 Log.Information("=== WebPaper Initialization Complete ===");
                 Log.Information("Wallpaper URL: {Url}", _config?.WallpaperUrl ?? "default");
                 Log.Information("Wallpaper is now fully interactive");
+
+                // Process any pending command from context menu (now that app is fully initialized)
+                if (!string.IsNullOrEmpty(_pendingCommand))
+                {
+                    Log.Information($"Executing pending command: {_pendingCommand}");
+                    ExecuteCommand(_pendingCommand);
+                    _pendingCommand = null;
+                }
             }
             catch (Exception ex)
             {
@@ -690,17 +693,14 @@ namespace WebPaper
         }
 
         /// <summary>
-        /// Processes command-line arguments from desktop context menu
+        /// Executes a command from desktop context menu (called after initialization)
         /// </summary>
-        private void ProcessCommand(string command)
+        private void ExecuteCommand(string command)
         {
-            Log.Information($"Processing desktop context menu command: {command}");
+            Log.Information($"Executing desktop context menu command: {command}");
 
-            // Delay command processing until after initialization
-            _dispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            try
             {
-                System.Threading.Thread.Sleep(1000); // Wait for app to fully initialize
-
                 switch (command.ToLower())
                 {
                     case "--settings":
@@ -713,7 +713,7 @@ namespace WebPaper
                         GoToHomePage();
                         break;
                     case "--toggle":
-                        _dispatcherQueue?.TryEnqueue(() => ToggleWallpaperAsync());
+                        ToggleWallpaper();
                         break;
                     case "--about":
                         ShowAbout();
@@ -722,7 +722,11 @@ namespace WebPaper
                         Log.Warning($"Unknown command: {command}");
                         break;
                 }
-            });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, $"Error executing command: {command}");
+            }
         }
 
         private void ReloadWallpaper()
@@ -738,18 +742,6 @@ namespace WebPaper
             catch (Exception ex)
             {
                 Log.Error(ex, "Error reloading wallpaper from context menu");
-            }
-        }
-
-        private void ToggleWallpaperAsync()
-        {
-            try
-            {
-                ToggleWallpaper();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error toggling wallpaper from context menu");
             }
         }
 

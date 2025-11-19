@@ -114,10 +114,23 @@
                         <TextBlock Text="Choose which monitor to display wallpaper on:"
                                   FontSize="14"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                        <ComboBox x:Name="MonitorSelectionComboBox"
-                                 MinWidth="300"
-                                 SelectionChanged="MonitorSelectionComboBox_SelectionChanged"
-                                 HorizontalAlignment="Left"/>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <ComboBox x:Name="MonitorSelectionComboBox"
+                                     MinWidth="300"
+                                     SelectionChanged="MonitorSelectionComboBox_SelectionChanged"
+                                     HorizontalAlignment="Left"/>
+                            <Button x:Name="RestartAppButton"
+                                   Content="Restart App"
+                                   Click="RestartAppButton_Click"
+                                   MinWidth="100"
+                                   Visibility="Collapsed"
+                                   Style="{ThemeResource AccentButtonStyle}"/>
+                        </StackPanel>
+                        <TextBlock x:Name="MonitorChangeNote"
+                                  Text="Restart required for monitor change to take effect"
+                                  FontSize="12"
+                                  Foreground="#FFCA8A04"
+                                  Visibility="Collapsed"/>
                     </StackPanel>
 
                     <TextBlock x:Name="MonitorInfoText"
