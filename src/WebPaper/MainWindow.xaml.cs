@@ -718,6 +718,10 @@ namespace WebPaper
                     case "--about":
                         ShowAbout();
                         break;
+                    case "--restart":
+                        // Restart command - no action needed, app already restarted
+                        Log.Information("App restarted successfully");
+                        break;
                     default:
                         Log.Warning($"Unknown command: {command}");
                         break;

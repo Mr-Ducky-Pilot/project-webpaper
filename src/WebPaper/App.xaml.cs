@@ -95,7 +95,8 @@ namespace WebPaper
                 {
                     string argument = commandArgs[1].ToLower();
                     isSpecialCommand = argument == "--install-context-menu" ||
-                                      argument == "--uninstall-context-menu";
+                                      argument == "--uninstall-context-menu" ||
+                                      argument == "--restart";
                 }
 
                 // Single instance check (skip for special installation commands)

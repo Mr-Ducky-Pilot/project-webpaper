@@ -368,10 +368,11 @@ namespace WebPaper
 
                 if (!string.IsNullOrEmpty(exePath))
                 {
-                    // Start a new instance
+                    // Start a new instance with --restart flag (bypasses single-instance check)
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = exePath,
+                        Arguments = "--restart",
                         UseShellExecute = true
                     });
 
