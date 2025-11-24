@@ -8,6 +8,7 @@
 ## ✅ Working Features
 
 WebPaper successfully:
+
 - ✅ Renders webpages as desktop wallpaper behind icons
 - ✅ Mouse clicks (left, right, middle) work perfectly
 - ✅ Keyboard typing works (text input, shortcuts, etc.)
@@ -41,9 +42,11 @@ Since WebPaper's window is a `WS_CHILD` of WorkerW (positioned behind the deskto
 ### Technical Details
 
 From Windows API research:
+
 > "Touchpad scroll events are sent only to the target window, so they cannot be captured through system-wide hooks."
 
 **Evidence from logs:**
+
 - Zero `WM_MOUSEWHEEL` messages logged when using trackpad scroll
 - Mouse wheel scroll generates messages that are successfully captured
 - This is a fundamental Windows API limitation, not a bug in WebPaper
@@ -53,48 +56,39 @@ From Windows API research:
 Fixing this would require:
 
 **Option A: Raw Input API**
+
 - Register for HID touchpad device (`RegisterRawInputDevices`)
 - Parse raw HID reports for scroll gestures
 - Complex implementation with marginal benefit
 
 **Option B: Window Focus Manipulation**
+
 - Temporarily bring window to foreground on scroll
 - Would cause visual flashing/artifacts
 - Unreliable and poor user experience
 
 **Option C: Give up desktop wallpaper positioning**
+
 - Makes the app not a wallpaper anymore
 - Defeats the entire purpose of WebPaper
 
 ### Workarounds for Users
 
 **Recommended methods:**
+
 1. **Use mouse wheel** - Works perfectly ✅
 2. **Use arrow keys** (↑↓) - Works perfectly ✅
 3. **Click and drag scrollbars** - Works perfectly ✅
 4. **Use external mouse** - Mouse wheel works ✅
 
 **Alternative:**
+
 - If the website has keyboard shortcuts (Space, Page Up/Down), use those
 
 ### Comparison with Other Apps
 
 **Lively Wallpaper:** Also does not support trackpad two-finger scroll (same Windows limitation)
 **Wallpaper Engine:** Unknown (uses DirectX rendering, different architecture)
-
----
-
-## 🐛 Other Issues
-
-### Settings Window Error (Under Investigation)
-
-**Error:** When opening Settings from system tray:
-```
-Failed to assign to property 'Microsoft.UI.Xaml.Controls.Primitives.RangeBase.Minimum'
-```
-
-**Impact:** Settings window may not open
-**Status:** Being investigated
 
 ---
 
