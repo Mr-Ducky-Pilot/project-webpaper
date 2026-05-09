@@ -38,8 +38,30 @@ namespace WebPaper
         private UnifiedSettingsWindow? _settingsWindow = null; // Track settings window instance
         private string? _pendingCommand = null; // Store command to execute after initialization
 
+        // Per-monitor support: when this is a "secondary" instance that just renders
+        // the wallpaper on an additional monitor, we skip the primary-only services
+        // (tray icon, welcome dialog, IPC server, settings windows).
+        private readonly bool _isSecondaryInstance;
+        private readonly Services.MonitorManager.MonitorInfo? _targetMonitor;
+
+        // Sibling secondary windows owned by the primary instance (one per non-primary monitor).
+        private readonly System.Collections.Generic.List<MainWindow> _secondaryWindows = new();
+
+        // IPC listener for desktop context-menu commands. Only the primary instance creates one.
+        private Services.IpcServer? _ipcServer;
+
+        // Screen-rect this instance "owns" — passed to InputManager so it ignores events
+        // on other monitors when we run per-monitor instances.
+        private (int x, int y, int w, int h)? _inputManagerMonitorBounds;
+
         public MainWindow(string? commandArgument = null)
+            : this(commandArgument, targetMonitor: null, isSecondary: false) { }
+
+        public MainWindow(string? commandArgument, Services.MonitorManager.MonitorInfo? targetMonitor, bool isSecondary)
         {
+            _isSecondaryInstance = isSecondary;
+            _targetMonitor = targetMonitor;
+
             this.InitializeComponent();
 
             // CRITICAL: Capture DispatcherQueue on UI thread for thread marshaling
@@ -77,42 +99,27 @@ namespace WebPaper
                 _appWindow.TitleBar.ButtonBackgroundColor = Colors.Transparent;
                 _appWindow.TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
 
-                // NOTE: Initial window positioning uses primary monitor since config isn't loaded yet
-                // The actual positioning based on user preference happens in AttachToDesktop()
-                // after configuration is loaded
-
-                // Get primary monitor using MonitorManager
-                var monitorManager = new Services.MonitorManager();
-                var primaryMonitor = monitorManager.GetPrimaryMonitor();
-
-                int screenWidth, screenHeight;
-                if (primaryMonitor != null)
+                // For secondary instances we already know the target monitor - position
+                // the AppWindow there immediately so the WebView2 control is created at
+                // the right size. The primary instance's monitor is resolved later in
+                // AttachToDesktop() once config is loaded.
+                Services.MonitorManager.MonitorInfo? monitor = _targetMonitor;
+                if (monitor == null)
                 {
-                    screenWidth = primaryMonitor.Width;
-                    screenHeight = primaryMonitor.Height;
-                    Log.Information($"Initial setup using primary monitor: {screenWidth}x{screenHeight}");
-                }
-                else
-                {
-                    // Fallback to GetSystemMetrics
-                    screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
-                    screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
-                    Log.Warning($"No primary monitor found, using fallback: {screenWidth}x{screenHeight}");
+                    var monitorManager = new Services.MonitorManager();
+                    monitor = monitorManager.GetPrimaryMonitor();
                 }
 
-                // Resize window to cover primary screen initially
-                _appWindow.Resize(new SizeInt32
-                {
-                    Width = screenWidth,
-                    Height = screenHeight
-                });
+                int x = monitor?.Left ?? 0;
+                int y = monitor?.Top ?? 0;
+                int screenWidth = monitor?.Width
+                    ?? Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
+                int screenHeight = monitor?.Height
+                    ?? Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
+                Log.Information($"Initial setup using monitor at ({x},{y}) {screenWidth}x{screenHeight} (secondary={_isSecondaryInstance})");
 
-                // Move window to origin (0, 0) - primary monitor is always at origin
-                _appWindow.Move(new PointInt32
-                {
-                    X = 0,
-                    Y = 0
-                });
+                _appWindow.Resize(new SizeInt32 { Width = screenWidth, Height = screenHeight });
+                _appWindow.Move(new PointInt32 { X = x, Y = y });
             }
             catch (Exception ex)
             {
@@ -137,8 +144,12 @@ namespace WebPaper
                 LoadingStatusText.Text = "Loading configuration...";
                 await LoadConfiguration();
                 Log.Information("Configuration loaded successfully");
-                LoadingStatusText.Text = "Setting up system tray...";
-                InitializeTrayIcon();
+
+                if (!_isSecondaryInstance)
+                {
+                    LoadingStatusText.Text = "Setting up system tray...";
+                    InitializeTrayIcon();
+                }
 
                 LoadingStatusText.Text = "Initializing cookie manager...";
                 _cookieManager = new Services.CookieManager();
@@ -146,8 +157,11 @@ namespace WebPaper
                 LoadingStatusText.Text = "Initializing web browser...";
                 await InitializeWebView2();
 
-                LoadingStatusText.Text = "Restoring saved sessions...";
-                await RestoreSavedCookies();
+                if (!_isSecondaryInstance)
+                {
+                    LoadingStatusText.Text = "Restoring saved sessions...";
+                    await RestoreSavedCookies();
+                }
 
                 LoadingStatusText.Text = "Attaching to desktop...";
                 AttachToDesktop();
@@ -158,18 +172,27 @@ namespace WebPaper
                 LoadingStatusText.Text = "Optimizing performance...";
                 InitializePerformanceManager();
 
-                // Check if first run and show welcome
-                LoadingStatusText.Text = "Almost ready...";
-                await CheckFirstRun();
+                if (!_isSecondaryInstance)
+                {
+                    LoadingStatusText.Text = "Almost ready...";
+                    await CheckFirstRun();
+                }
 
-                // Hide loading panel
                 LoadingPanel.Visibility = Visibility.Collapsed;
 
-                Log.Information("=== WebPaper Initialization Complete ===");
+                Log.Information("=== WebPaper Initialization Complete (secondary={Sec}) ===", _isSecondaryInstance);
                 Log.Information("Wallpaper URL: {Url}", _config?.WallpaperUrl ?? "default");
-                Log.Information("Wallpaper is now fully interactive");
 
-                // Process any pending command from context menu (now that app is fully initialized)
+                if (!_isSecondaryInstance)
+                {
+                    // Per-monitor mode: spawn one additional MainWindow per non-primary monitor.
+                    SpawnSecondaryMonitorWindowsIfNeeded();
+
+                    // Start the IPC server so right-click → "Settings/Reload/Home/Toggle/About"
+                    // routes commands into this already-running instance instead of being lost.
+                    StartIpcServer();
+                }
+
                 if (!string.IsNullOrEmpty(_pendingCommand))
                 {
                     Log.Information($"Executing pending command: {_pendingCommand}");
@@ -330,48 +353,60 @@ namespace WebPaper
                     Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
                 );
 
-                // Position window to fill selected monitor
-                // Use MonitorManager to get monitor dimensions based on user preference
-                var monitorManager = new Services.MonitorManager();
-                int preferredIndex = _config?.PreferredMonitorIndex ?? 0;
-                var selectedMonitor = monitorManager.GetMonitorByIndex(preferredIndex);
-
-                // Fallback to primary monitor if preferred is not available
+                // Resolve which monitor this instance owns.
+                Services.MonitorManager.MonitorInfo? selectedMonitor = _targetMonitor;
                 if (selectedMonitor == null)
                 {
-                    selectedMonitor = monitorManager.GetPrimaryMonitor();
+                    var monitorManager = new Services.MonitorManager();
+                    int preferredIndex = _config?.PreferredMonitorIndex ?? 0;
+                    selectedMonitor = monitorManager.GetMonitorByIndex(preferredIndex)
+                                   ?? monitorManager.GetPrimaryMonitor();
                 }
 
+                int sx, sy, sw, sh;
                 if (selectedMonitor != null)
                 {
-                    // Position window at selected monitor with its size
-                    Native.NativeMethods.SetWindowPos(
-                        _windowHandle,
-                        IntPtr.Zero,
-                        selectedMonitor.Left, selectedMonitor.Top,
-                        selectedMonitor.Width, selectedMonitor.Height,
-                        Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
-                        Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW |
-                        Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
-                    );
-
-                    Log.Information($"Window positioned on monitor: {selectedMonitor}");
+                    sx = selectedMonitor.Left;
+                    sy = selectedMonitor.Top;
+                    sw = selectedMonitor.Width;
+                    sh = selectedMonitor.Height;
                 }
                 else
                 {
-                    // Fallback to default screen dimensions
-                    int screenWidth = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
-                    int screenHeight = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
-                    Native.NativeMethods.SetWindowPos(
-                        _windowHandle,
-                        IntPtr.Zero,
-                        0, 0,
-                        screenWidth, screenHeight,
-                        Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
-                        Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW |
-                        Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
-                    );
+                    sx = 0; sy = 0;
+                    sw = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CXSCREEN);
+                    sh = Native.NativeMethods.GetSystemMetrics(Native.NativeMethods.SM_CYSCREEN);
                     Log.Warning("Using fallback monitor dimensions");
+                }
+
+                // BUG FIX (multi-monitor): once we are a child of WorkerW, SetWindowPos
+                // takes coordinates in the *parent's client area*, not screen coords.
+                // Translate the screen rect into WorkerW client coords with MapWindowPoints.
+                var rect = new Native.NativeMethods.RECT(sx, sy, sx + sw, sy + sh);
+                if (workerW != IntPtr.Zero)
+                {
+                    Native.NativeMethods.MapWindowPoints(IntPtr.Zero, workerW, ref rect, 2);
+                }
+
+                Native.NativeMethods.SetWindowPos(
+                    _windowHandle,
+                    IntPtr.Zero,
+                    rect.Left, rect.Top,
+                    rect.Right - rect.Left, rect.Bottom - rect.Top,
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOZORDER |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_SHOWWINDOW |
+                    Native.NativeMethods.SetWindowPosFlags.SWP_NOACTIVATE
+                );
+
+                Log.Information($"Window positioned on monitor: {selectedMonitor}, " +
+                    $"screen=({sx},{sy} {sw}x{sh}), workerWChild=({rect.Left},{rect.Top} {rect.Width}x{rect.Height})");
+
+                // Tell the InputManager which screen rect belongs to us so it ignores
+                // events on other monitors (avoids duplicate forwarding when running
+                // per-monitor instances).
+                if (selectedMonitor != null)
+                {
+                    _inputManagerMonitorBounds = (sx, sy, sw, sh);
                 }
 
                 // Explicitly show the window
@@ -414,6 +449,13 @@ namespace WebPaper
 
                 // Install hooks (CRITICAL: Pass main window handle + DispatcherQueue for thread marshaling)
                 _inputManager.InstallHooks(webView.CoreWebView2, webViewHandle, _windowHandle, _dispatcherQueue!);
+
+                if (_inputManagerMonitorBounds.HasValue)
+                {
+                    var b = _inputManagerMonitorBounds.Value;
+                    _inputManager.SetMonitorBounds(b.x, b.y, b.w, b.h);
+                    Log.Information("InputManager scoped to monitor rect ({X},{Y} {W}x{H})", b.x, b.y, b.w, b.h);
+                }
 
                 Log.Information("Input hooks installed successfully");
             }
@@ -1093,6 +1135,20 @@ namespace WebPaper
                 Log.Error(ex, "Error saving cookies");
             }
 
+            // Close secondary wallpaper windows (if any).
+            foreach (var sec in _secondaryWindows.ToArray())
+            {
+                try { sec.Close(); } catch { /* best-effort */ }
+            }
+            _secondaryWindows.Clear();
+
+            // Stop the IPC server before any further teardown.
+            if (_ipcServer != null)
+            {
+                try { _ipcServer.Dispose(); } catch (Exception ex) { Log.Error(ex, "Error disposing IpcServer"); }
+                _ipcServer = null;
+            }
+
             // Cleanup system tray
             if (_trayIconManager != null)
             {
@@ -1161,6 +1217,73 @@ namespace WebPaper
             }
 
             Log.Information("WebPaper shutdown complete");
+        }
+
+        /// <summary>
+        /// When the user has chosen <see cref="Models.WallpaperMode.AllMonitors"/>, spawn
+        /// one additional MainWindow per non-primary monitor. Each secondary uses the
+        /// same WallpaperUrl/config but skips primary-only services (tray icon, IPC,
+        /// welcome dialog).
+        /// </summary>
+        private void SpawnSecondaryMonitorWindowsIfNeeded()
+        {
+            try
+            {
+                if (_isSecondaryInstance) return;
+                if (_config?.Mode != Models.WallpaperMode.AllMonitors) return;
+
+                var monitorManager = new Services.MonitorManager();
+                var monitors = monitorManager.GetAllMonitors();
+                int primaryIdx = _config?.PreferredMonitorIndex ?? 0;
+                if (primaryIdx >= monitors.Count) primaryIdx = 0;
+
+                Log.Information("AllMonitors mode: spawning secondaries for {Count} non-primary monitors",
+                    monitors.Count - 1);
+
+                for (int i = 0; i < monitors.Count; i++)
+                {
+                    if (i == primaryIdx) continue;
+                    var m = monitors[i];
+                    Log.Information("Creating secondary wallpaper for monitor {Index}: {Monitor}", i, m);
+                    var secondary = new MainWindow(commandArgument: null, targetMonitor: m, isSecondary: true);
+                    _secondaryWindows.Add(secondary);
+                    secondary.Activate();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to spawn secondary monitor windows");
+            }
+        }
+
+        /// <summary>
+        /// Starts a hidden message-only window that listens for WM_COPYDATA messages
+        /// from new instances launched via the desktop right-click menu. The new
+        /// instance posts its command (--settings, --reload, …) to us and exits.
+        /// </summary>
+        private void StartIpcServer()
+        {
+            try
+            {
+                _ipcServer = new Services.IpcServer(HandleIpcCommand);
+                _ipcServer.Start();
+                Log.Information("IPC server listening for context-menu commands");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to start IPC server");
+            }
+        }
+
+        private void HandleIpcCommand(string command)
+        {
+            Log.Information("IPC: received command {Command}", command);
+            // IpcServer raises this from the message-pump thread; marshal to UI.
+            _dispatcherQueue?.TryEnqueue(() =>
+            {
+                try { ExecuteCommand(command); }
+                catch (Exception ex) { Log.Error(ex, "Failed to execute IPC command {Cmd}", command); }
+            });
         }
 
         /// <summary>

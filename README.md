@@ -114,9 +114,12 @@ WebPaper brings the **full power of the web** to your Windows desktop wallpaper.
 
 ## ⚡ Key Features
 
-- ✅ **Fully Interactive** - Click, type, scroll — everything works
+- ✅ **Fully Interactive** - Click, type, scroll — everything works (incl. Shift, Ctrl, Alt and arrow keys)
 - ✅ **Stay Logged In** - Secure cookie storage keeps you authenticated
 - ✅ **Desktop Icons Work** - Icons remain fully clickable on top
+- ✅ **Foreground Apps Untouched** - Clicks on Chrome / VS Code / File Explorer pass through cleanly
+- ✅ **Multi-Monitor** - Pick a single monitor or render the wallpaper on every monitor at once
+- ✅ **Desktop Right-Click Menu** - Settings / Reload / Home / Toggle / About route into the running instance
 - ✅ **Auto-Pause** - Saves resources during fullscreen apps and low battery
 - ✅ **Beautiful UI** - Modern design with smooth animations
 - ✅ **System Tray** - Quick controls and settings
@@ -157,6 +160,23 @@ That simple wish sparked a question: **Why isn't this possible?**
 After discovering Lively Wallpaper (which supports webpages but without full interactivity — no scrolling or typing), I decided to create something better. A **lightweight, fully interactive** webpage wallpaper that works exactly like a browser.
 
 **Hence the name: WebPaper** = Webpage + Wallpaper ✨
+
+---
+
+## 🖥️ Multi-Monitor
+
+WebPaper supports two layouts, configured via Settings:
+
+| Mode             | Behavior                                                                              |
+|------------------|---------------------------------------------------------------------------------------|
+| **Single monitor** *(default)* | One wallpaper window on the monitor selected by `PreferredMonitorIndex`.   |
+| **All monitors** | One wallpaper window per monitor, each rendering the same URL independently.          |
+
+Under the hood, "All monitors" mode spawns one additional `MainWindow`/`WebView2`
+per non-primary monitor, each parented into WorkerW and scoped to its own
+screen rect — this is the same per-display approach that Lively Wallpaper uses.
+Input forwarding is automatically restricted to the monitor each instance owns,
+so clicking on monitor A only affects monitor A's webpage.
 
 ---
 

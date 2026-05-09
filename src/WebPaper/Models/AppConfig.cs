@@ -3,6 +3,17 @@ using System;
 namespace WebPaper.Models
 {
     /// <summary>
+    /// How the wallpaper is laid out across the user's monitors.
+    /// </summary>
+    public enum WallpaperMode
+    {
+        /// <summary>One wallpaper window on the monitor selected by <see cref="AppConfig.PreferredMonitorIndex"/>.</summary>
+        SingleMonitor = 0,
+        /// <summary>One wallpaper window per monitor (Lively-style "per display"). Each monitor renders the same URL independently.</summary>
+        AllMonitors = 1,
+    }
+
+    /// <summary>
     /// Application configuration model
     /// </summary>
     public class AppConfig
@@ -53,9 +64,15 @@ namespace WebPaper.Models
         public DateTime? LastLaunchDate { get; set; }
 
         /// <summary>
-        /// Preferred monitor index for wallpaper display (0 = Primary, 1+ = Secondary monitors)
+        /// Preferred monitor index for wallpaper display (0 = Primary, 1+ = Secondary monitors).
+        /// Only used when <see cref="Mode"/> is <see cref="WallpaperMode.SingleMonitor"/>.
         /// </summary>
         public int PreferredMonitorIndex { get; set; } = 0;
+
+        /// <summary>
+        /// How the wallpaper is laid out across monitors.
+        /// </summary>
+        public WallpaperMode Mode { get; set; } = WallpaperMode.SingleMonitor;
 
         /// <summary>
         /// Creates a default configuration

@@ -96,26 +96,36 @@ _keyboardHookId = SetWindowsHookEx(
 );
 ```
 
-**Hit-Testing Logic:**
+**Hit-Testing Logic (rewritten in 2026 to fix the "can't click foreground apps" bug):**
 
 ```csharp
-// Check if click is on desktop icon or wallpaper
 IntPtr hwnd = WindowFromPoint(clickPosition);
-string className = GetWindowClassName(hwnd);
+string cls  = GetClassName(hwnd);
 
-// Desktop icons are in "SysListView32" window
-if (className.Contains("SysListView32"))
-    return false;  // Don't forward - let icon handle it
-
-if (className.Contains("Chrome_RenderWidgetHostHWND"))
-    return true;   // Our WebView2 - forward input
-
-return false;  // Other window - don't forward
+if (cls.Contains("SysListView32"))                  return DesktopIcon;
+if (cls.Contains("Chrome_RenderWidgetHostHWND")
+    && IsDescendantOfMain(hwnd))                    return Wallpaper;
+if (cls.Contains("SHELLDLL_DefView")
+    || cls.Contains("Progman")
+    || cls == "WorkerW")                            return Wallpaper;
+return OtherApp;          // Foreground app — pass through, do nothing.
 ```
 
-**Event Consumption:**
-- **Mouse events:** Passed through (not consumed) - allows natural icon clicks
-- **Keyboard events:** Consumed after forwarding - prevents double input
+**Event Routing:**
+- **Wallpaper hit** → forward to WebView2 via `PostMessage` to `Chrome_WidgetWin_1`.
+- **DesktopIcon hit** → leave it alone; the shell handles the click natively.
+- **OtherApp hit** → never intercepted; the user's foreground app receives the click intact.
+
+**Modifier Key Handling:**
+- **Shift / Ctrl / Alt / Caps / Win:** never consumed, never injected. They
+  always fall through `CallNextHookEx` so the kernel updates global key state.
+  WebView2/Chromium reads that state via `GetKeyState()` when our manually
+  posted `WM_KEYDOWN` arrives.
+- **Other keys** *while the cursor is over the wallpaper:* forwarded to
+  WebView2 as a properly-formed `WM_KEYDOWN` (with a real bitfield `lParam`
+  built from `KBDLLHOOKSTRUCT`) plus `WM_CHAR`/`WM_SYSCHAR`. The keydown is
+  consumed so the desktop doesn't also receive it (no icon-search popup,
+  no F2 rename, no arrow-key icon nav).
 
 **Key Files:**
 - `src/WebPaper/Core/InputManager.cs` - Input hook implementation
@@ -288,13 +298,12 @@ private async Task PauseRenderingAsync(string reason)
    - WM_MOUSEWHEEL messages don't fire for two-finger scroll
    - **Workaround:** Use mouse wheel, scroll bars, or keyboard arrows
 
-2. **Primary Monitor Only**
-   - Currently wallpaper only appears on primary monitor
-   - Multi-monitor support planned for v1.0
-
-3. **Some Keyboard Shortcuts**
-   - Windows system hotkeys (Win+X, Alt+Tab) captured before hooks
-   - This is by design (system-level shortcuts have priority)
+2. **Some Keyboard Shortcuts**
+   - Windows system hotkeys (Win+X, Alt+Tab, Ctrl+Esc) are explicitly let
+     through so the shell keeps working
+   - Modifier keys themselves (Shift, Ctrl, Alt, Win) are never consumed —
+     they fall through to the kernel so Chromium/WebView2 reads correct
+     modifier state via `GetKeyState`
 
 ### By Design
 
@@ -318,23 +327,59 @@ private async Task PauseRenderingAsync(string reason)
 src/WebPaper/
 ├── Core/
 │   ├── WorkerWManager.cs       # Desktop integration (WorkerW)
-│   └── InputManager.cs         # Low-level input hooks
+│   └── InputManager.cs         # Low-level input hooks + per-monitor scope
 ├── Services/
 │   ├── CookieManager.cs        # Secure cookie persistence
 │   ├── PerformanceManager.cs   # Auto-pause optimization
 │   ├── TrayIconManager.cs      # System tray icon
-│   └── ConfigManager.cs        # Settings management
+│   ├── ContextMenuManager.cs   # Desktop right-click registration
+│   ├── ConfigManager.cs        # Settings management
+│   ├── MonitorManager.cs       # Multi-monitor detection
+│   └── IpcServer.cs            # Named-pipe server for context-menu commands
 ├── Native/
 │   └── NativeMethods.cs        # Windows API P/Invoke
 ├── Models/
-│   ├── AppConfig.cs            # Configuration model
-│   └── CookieData.cs           # Cookie serialization
-├── MainWindow.xaml(.cs)        # Main wallpaper window
-├── SettingsWindow.xaml(.cs)    # Settings UI
-├── AboutWindow.xaml(.cs)       # About dialog
+│   ├── AppConfig.cs            # Configuration model + WallpaperMode enum
+│   ├── CookieData.cs           # Cookie serialization
+│   └── InputEvents.cs          # Input event types
+├── MainWindow.xaml(.cs)        # Wallpaper window (primary or per-monitor secondary)
+├── UnifiedSettingsWindow.xaml(.cs) # Unified Settings UI
+├── AboutWindow.xaml(.cs)       # About dialog (legacy)
 ├── LoginHelperWindow.xaml(.cs) # Login helper
-└── App.xaml(.cs)               # Application entry point
+└── App.xaml(.cs)               # Entry point + single-instance + IPC client
 ```
+
+### Per-Monitor Architecture (2026)
+
+When `AppConfig.Mode == AllMonitors`, the primary `MainWindow` is the only one
+that runs the tray icon, IPC server, welcome dialog and cookie restore. After
+its own initialization completes it spawns one additional `MainWindow` per
+non-primary monitor with `isSecondary: true`. Each secondary:
+
+- targets a specific `MonitorInfo`,
+- creates its own `WebView2` against the shared user-data folder,
+- attaches itself into WorkerW,
+- installs its own `InputManager` whose `SetMonitorBounds(...)` ensures it
+  only forwards events from its own monitor.
+
+Because every instance's hook is system-wide, an event near the boundary fires
+in every instance — but only one instance's bounds will contain the screen
+point, so exactly one forwards.
+
+### Right-Click Context Menu (IPC)
+
+The desktop right-click integration registers commands like `--settings`,
+`--reload`, `--home`, `--toggle`, `--about`. When the user picks one, Windows
+launches `WebPaper.exe --settings`. The single-instance `Mutex` blocks the
+new process from running its own UI, but `App.OnLaunched` now:
+
+1. notices the command-line argument is a context-menu command,
+2. opens the per-user `WebPaper.IPC.v1` named pipe,
+3. writes the command and exits.
+
+The primary instance's `IpcServer` accepts the connection, reads the command,
+marshals to the UI thread, and runs the same `ExecuteCommand` dispatcher the
+internal tray menu uses.
 
 **Key Metrics:**
 - **Total Lines of Code:** ~3,500 (C#)
