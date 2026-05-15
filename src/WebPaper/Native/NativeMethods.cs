@@ -257,6 +257,22 @@ namespace WebPaper.Native
         // System metrics constants
         public const int SM_CXSCREEN = 0;  // Width of primary monitor in pixels
         public const int SM_CYSCREEN = 1;  // Height of primary monitor in pixels
+        public const int SM_XVIRTUALSCREEN = 76;
+        public const int SM_YVIRTUALSCREEN = 77;
+        public const int SM_CXVIRTUALSCREEN = 78;
+        public const int SM_CYVIRTUALSCREEN = 79;
+
+        /// <summary>
+        /// Maps a set of points from one window's coordinate space to another's.
+        /// Used to translate screen coords into WorkerW client coords for child positioning.
+        /// </summary>
+        [DllImport("user32.dll")]
+        public static extern int MapWindowPoints(IntPtr hWndFrom, IntPtr hWndTo, [In, Out] ref RECT lpPoints, uint cPoints);
+
+        /// <summary>
+        /// HWND_MESSAGE - creates a message-only window (no UI, used for IPC)
+        /// </summary>
+        public static readonly IntPtr HWND_MESSAGE = new IntPtr(-3);
 
         #endregion
 
@@ -420,6 +436,37 @@ namespace WebPaper.Native
             public IntPtr dwExtraInfo;
         }
 
+        /// <summary>
+        /// Low-level keyboard hook struct (KBDLLHOOKSTRUCT)
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode;
+            public uint scanCode;
+            public uint flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        // KBDLLHOOKSTRUCT.flags bits
+        public const uint LLKHF_EXTENDED = 0x01;
+        public const uint LLKHF_INJECTED = 0x10;
+        public const uint LLKHF_ALTDOWN  = 0x20;
+        public const uint LLKHF_UP       = 0x80;
+
+        // COPYDATASTRUCT for WM_COPYDATA IPC
+        [StructLayout(LayoutKind.Sequential)]
+        public struct COPYDATASTRUCT
+        {
+            public IntPtr dwData;
+            public int cbData;
+            public IntPtr lpData;
+        }
+
+        // Magic constant identifying WebPaper IPC messages
+        public const int WEBPAPER_IPC_DATA_ID = 0x57505052; // 'WPPR'
+
         #endregion
 
         #region Message Sending
@@ -566,8 +613,11 @@ namespace WebPaper.Native
         public const uint WM_KEYDOWN = 0x0100;
         public const uint WM_KEYUP = 0x0101;
         public const uint WM_CHAR = 0x0102;
+        public const uint WM_DEADCHAR = 0x0103;
         public const uint WM_SYSKEYDOWN = 0x0104;
         public const uint WM_SYSKEYUP = 0x0105;
+        public const uint WM_SYSCHAR = 0x0106;
+        public const uint WM_COPYDATA = 0x004A;
 
         // Virtual key codes (commonly used)
         public const int VK_SHIFT = 0x10;

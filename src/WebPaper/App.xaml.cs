@@ -107,7 +107,33 @@ namespace WebPaper
 
                     if (!createdNew)
                     {
-                        // Another instance is already running
+                        // Another instance is already running. If the user invoked us
+                        // from the desktop right-click menu (which always passes a
+                        // command-line argument like --settings / --reload / --home /
+                        // --toggle / --about), forward the command to the running
+                        // instance over the IPC pipe and exit silently. This is what
+                        // makes the right-click context menu actually work — without
+                        // it we used to show a "WebPaper is already running" dialog
+                        // and the user's command was lost.
+                        if (commandArgs.Length > 1 && IsContextMenuCommand(commandArgs[1]))
+                        {
+                            string cmd = commandArgs[1];
+                            Log.Information("Forwarding context-menu command {Cmd} to running instance via IPC", cmd);
+                            bool sent = Services.IpcServer.TrySendCommand(cmd);
+                            if (!sent)
+                            {
+                                Log.Warning("IPC send failed for {Cmd}, falling back to user notice", cmd);
+                                Native.NativeMethods.MessageBox(
+                                    IntPtr.Zero,
+                                    "Could not reach the running WebPaper instance.\n\nIs WebPaper still loading?",
+                                    "WebPaper",
+                                    Native.NativeMethods.MB_OK | Native.NativeMethods.MB_ICONWARNING
+                                );
+                            }
+                            Current.Exit();
+                            return;
+                        }
+
                         Log.Information("Another instance of WebPaper is already running. Exiting.");
                         Native.NativeMethods.MessageBox(
                             IntPtr.Zero,
@@ -155,6 +181,13 @@ namespace WebPaper
                 ShowFatalError($"WebPaper failed to start:\n\n{ex.Message}\n\nPlease check the log file at:\n%LocalAppData%\\WebPaper\\Logs");
                 Current.Exit();
             }
+        }
+
+        private static bool IsContextMenuCommand(string arg)
+        {
+            string a = arg.ToLowerInvariant();
+            return a == "--settings" || a == "--reload" || a == "--home"
+                || a == "--toggle"   || a == "--about";
         }
 
         private void EnsureWebView2Runtime()

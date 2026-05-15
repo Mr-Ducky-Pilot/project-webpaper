@@ -47,10 +47,17 @@ namespace WebPaper.Core
         // Desktop icon window (SysListView32) - cached for click forwarding
         private IntPtr _desktopIconWindow = IntPtr.Zero;
 
-        // Foreground window tracking for input filtering
+        // Foreground window tracking for input filtering.
+        // NOTE: Caching here was the root cause of the "can't click foreground apps" bug.
+        // The foreground state can change between the user clicking on an app and our hook
+        // firing. We now check on every event - GetForegroundWindow is a cheap call.
         private DateTime _lastForegroundCheck = DateTime.MinValue;
         private bool _desktopIsForeground = true;
-        private const int FOREGROUND_CHECK_INTERVAL_MS = 500; // Check every 500ms
+        private const int FOREGROUND_CHECK_INTERVAL_MS = 0; // No cache - check every event
+
+        // Optional bounds: if set, only events whose screen position is inside this rect
+        // are forwarded. Used by per-monitor wallpaper instances.
+        private RECT? _monitorBounds = null;
 
         /// <summary>
         /// Gets or sets whether input forwarding is enabled
@@ -72,6 +79,16 @@ namespace WebPaper.Core
         /// Gets whether hooks are currently installed
         /// </summary>
         public bool HooksInstalled => _mouseHookId != IntPtr.Zero || _keyboardHookId != IntPtr.Zero;
+
+        /// <summary>
+        /// Restricts which screen events are forwarded. When set, only events whose
+        /// screen-coordinate position falls inside the given rect are forwarded.
+        /// Used by per-monitor wallpaper instances.
+        /// </summary>
+        public void SetMonitorBounds(int left, int top, int width, int height)
+        {
+            _monitorBounds = new RECT(left, top, left + width, top + height);
+        }
 
         /// <summary>
         /// Installs low-level mouse and keyboard hooks
@@ -260,101 +277,104 @@ namespace WebPaper.Core
         }
 
         /// <summary>
-        /// Low-level mouse hook callback
+        /// Low-level mouse hook callback.
+        /// Hit-testing rules (fixes the "can't click foreground apps" bug):
+        ///   - WindowFromPoint returns one of: WebView2 (Chrome_RenderWidgetHostHWND),
+        ///     SysListView32 (desktop icons), SHELLDLL_DefView, Progman, WorkerW, or
+        ///     a foreground application window.
+        ///   - We only intervene for the desktop classes. For everything else we
+        ///     pass through untouched so foreground apps receive their input normally.
         /// </summary>
         private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
         {
             try
             {
-                // CRITICAL: Process quickly to avoid timeout (must complete in <200ms)
                 if (nCode >= HC_ACTION && _isEnabled && _webView != null)
                 {
-                    // CRITICAL: Check if a user application has focus - don't intercept their input
+                    // If a user application has focus, don't intercept anything.
                     if (IsUserApplicationForeground())
                     {
-                        // A regular app (Chrome, Notepad, etc.) has focus - don't intercept
                         return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
                     }
 
-                    // Parse mouse event
                     var hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                     uint msg = (uint)wParam.ToInt32();
+                    POINT pt = hookStruct.pt;
+                    _lastMousePosition = pt;
 
-                    // CRITICAL: Track mouse position for keyboard focus detection
-                    _lastMousePosition = hookStruct.pt;
+                    // Per-monitor scope: ignore events outside our monitor rect.
+                    if (_monitorBounds.HasValue)
+                    {
+                        var b = _monitorBounds.Value;
+                        if (pt.X < b.Left || pt.X >= b.Right || pt.Y < b.Top || pt.Y >= b.Bottom)
+                        {
+                            return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
+                        }
+                    }
 
-                    bool isOverWallpaper = IsClickOnWallpaper(hookStruct.pt);
+                    var (target, _) = ClassifyClickTarget(pt);
 
-                    // Update wallpaper hover state and timestamp
-                    if (isOverWallpaper)
+                    // Track wallpaper-hover state for keyboard forwarding gate.
+                    if (target == ClickTarget.Wallpaper)
                     {
                         _mouseOverWallpaper = true;
                         _lastMouseOverWallpaperTime = DateTime.Now;
                     }
-                    else if (msg == WM_MOUSEMOVE)
+                    else if (msg == WM_MOUSEMOVE && target != ClickTarget.DesktopIcon)
                     {
-                        // Only update on mouse move - not on scroll events
-                        // (trackpad scrolls don't move cursor, so we don't want to lose focus)
                         _mouseOverWallpaper = false;
                     }
 
-                    // Handle clicks for desktop interaction
-                    if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_LBUTTONDBLCLK)
+                    bool isClick =
+                        msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP ||
+                        msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP ||
+                        msg == WM_LBUTTONDBLCLK || msg == WM_MBUTTONDOWN ||
+                        msg == WM_MBUTTONUP;
+                    bool isRightClick = msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP;
+                    bool isDoubleClick = msg == WM_LBUTTONDBLCLK;
+
+                    if (isClick)
                     {
-                        // Debug: Log mouse clicks
-                        // Console.WriteLine($"InputManager: {GetMouseEventName(msg)} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
-                        //     $"OnWallpaper: {isOverWallpaper}, IconWindow: 0x{_desktopIconWindow:X8}");
-
-                        // CRITICAL FIX: "Double Forwarding" Strategy (from working commit 170c986)
-                        // Forward clicks to BOTH desktop icons AND wallpaper
-                        // - SysListView32 (desktop icons) has internal hit-testing
-                        // - If there's an icon at this position, SysListView32 consumes the click and handles it
-                        // - If no icon, SysListView32 ignores the message
-                        // - Then our wallpaper handles the click for webpage interaction
-                        // This works because SysListView32 uses hit-testing internally!
-
-                        // SPECIAL HANDLING:
-                        // 1. Right-click: In WebPaper Control mode, show desktop context menu (not browser)
-                        //    User rarely needs right-click on webpages
-                        // 2. Double-click should ONLY go to icons (for opening), NOT to wallpaper (prevents text selection)
-                        bool isRightClick = (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP);
-                        bool isDoubleClick = (msg == WM_LBUTTONDBLCLK);
-
-                        // Step 1: Always forward ALL clicks to desktop icons first
-                        if (_desktopIconWindow != IntPtr.Zero)
+                        switch (target)
                         {
-                            ForwardToDesktopIcons(_desktopIconWindow, msg, hookStruct);
-                        }
+                            case ClickTarget.DesktopIcon:
+                                // Click on the icon list — let it stay there.
+                                // Icons receive clicks naturally; do NOT echo to the wallpaper
+                                // (that previously caused phantom selection / focus loss).
+                                break;
 
-                        // Step 2: Forward to wallpaper ONLY for SINGLE left-clicks when over wallpaper
-                        // Skip: right-clicks (to allow desktop context menu) and double-clicks (to prevent text selection)
-                        if (isOverWallpaper && !isRightClick && !isDoubleClick)
-                        {
-                            ForwardMouseEvent(wParam, hookStruct);
+                            case ClickTarget.Wallpaper:
+                                // Click on the wallpaper area. Forward to WebView2 for single
+                                // left-clicks. Right-click and double-click are deliberately
+                                // not forwarded so the desktop context menu / icon-launch
+                                // behavior keeps working.
+                                if (!isRightClick && !isDoubleClick)
+                                {
+                                    ForwardMouseEvent(wParam, hookStruct);
+                                }
+                                break;
+
+                            case ClickTarget.OtherApp:
+                                // Click landed on a foreground application window we don't own.
+                                // Crucially do NOT forward anywhere — this is the bug where
+                                // selections/clicks in other apps were being broken.
+                                break;
                         }
                     }
-                    else if (msg == WM_MOUSEWHEEL)
+                    else if (msg == WM_MOUSEWHEEL || msg == WM_MOUSEHWHEEL)
                     {
-                        // CRITICAL FIX: For scroll events, be more lenient!
-                        // Trackpad two-finger scroll doesn't move the cursor, so we check if
-                        // the mouse was over the wallpaper recently (within 2 seconds)
-                        TimeSpan timeSinceOverWallpaper = DateTime.Now - _lastMouseOverWallpaperTime;
-                        bool shouldForwardScroll = timeSinceOverWallpaper.TotalSeconds < 2.0;
-
-                        // Debug: Log scroll events
-                        // short wheelDelta = (short)((hookStruct.mouseData >> 16) & 0xFFFF);
-                        // Console.WriteLine($"InputManager: WM_MOUSEWHEEL delta={wheelDelta} at ({hookStruct.pt.X},{hookStruct.pt.Y}) - " +
-                        //     $"timeSinceOver={timeSinceOverWallpaper.TotalMilliseconds:F0}ms, forward={shouldForwardScroll}");
-
-                        if (shouldForwardScroll)
+                        // Trackpad two-finger scroll never moves the cursor, so use a
+                        // grace window: forward if the cursor was over the wallpaper recently.
+                        if (target == ClickTarget.Wallpaper ||
+                            (DateTime.Now - _lastMouseOverWallpaperTime).TotalSeconds < 2.0)
                         {
                             ForwardMouseEvent(wParam, hookStruct);
                         }
                     }
                     else
                     {
-                        // For other non-click events (moves, etc.), forward only if over wallpaper
-                        if (isOverWallpaper)
+                        // Mouse moves: forward only when the cursor is over the wallpaper.
+                        if (target == ClickTarget.Wallpaper)
                         {
                             ForwardMouseEvent(wParam, hookStruct);
                         }
@@ -363,68 +383,65 @@ namespace WebPaper.Core
             }
             catch (Exception ex)
             {
-                // Never throw from hook - would cause hook to be removed
                 Console.WriteLine($"InputManager: Mouse hook error - {ex.Message}");
             }
 
-            // ALWAYS call next hook
             return CallNextHookEx(_mouseHookId, nCode, wParam, lParam);
         }
 
         /// <summary>
-        /// Low-level keyboard hook callback
+        /// Low-level keyboard hook callback.
+        ///
+        /// Modifier-key handling (fixes "Shift / Ctrl / arrow keys don't work"):
+        ///   Modifier keys are never consumed and never injected — they always fall through
+        ///   to <see cref="CallNextHookEx"/>. This lets the kernel update its global key
+        ///   state, which Chromium/WebView2 reads via GetKeyState() when our manually
+        ///   posted WM_KEYDOWN messages arrive. Previously we were consuming the modifier
+        ///   keydowns which left the kernel believing Shift/Ctrl were never pressed, so
+        ///   Shift+letter, Ctrl+A, Shift+Arrow etc. all looked unmodified to the page.
         /// </summary>
         private IntPtr KeyboardHookProc(int nCode, IntPtr wParam, IntPtr lParam)
         {
             try
             {
-                // CRITICAL: Process quickly to avoid timeout
                 if (nCode >= HC_ACTION && _isEnabled && _webView != null)
                 {
-                    // CRITICAL: Check if a user application has focus - don't intercept their input
                     if (IsUserApplicationForeground())
                     {
-                        // A regular app (Chrome, Notepad, etc.) has focus - don't intercept
                         return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
                     }
 
-                    // Parse keyboard event
-                    int vkCode = Marshal.ReadInt32(lParam);
+                    var kb = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+                    int vk = (int)kb.vkCode;
                     uint msg = (uint)wParam.ToInt32();
 
-                    // CRITICAL: NEVER consume special system keys - always pass them through
-                    // These keys must work globally for Windows functionality
-                    if (IsSystemKey(vkCode))
+                    // 1. Modifiers always pass through. The kernel updates its key state,
+                    //    and Chromium reads that state when our WM_KEYDOWN messages arrive.
+                    if (IsModifierKey(vk))
                     {
-                        // System keys: Windows key, Alt, Tab, Ctrl+Alt+Del, etc.
-                        // Let them pass through normally - don't forward to wallpaper
                         return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
                     }
 
-                    // Only forward keyboard if mouse is over wallpaper
-                    // This prevents interference when user is working on desktop icons or taskbar
-                    if (_mouseOverWallpaper)
+                    // 2. System hotkeys must never be intercepted. Alt+Tab, Alt+F4, Alt+Esc,
+                    //    Win+anything, Ctrl+Esc all need to reach the shell.
+                    if (IsSystemHotkey(vk, kb.flags))
                     {
-                        // Forward keyboard event to WebView2
-                        ForwardKeyboardEvent(wParam, vkCode, lParam);
-
-                        // CRITICAL: Consume ALL keys (except system keys already filtered above)
-                        // This prevents desktop interference completely
-                        // - Printable keys: prevent desktop icon search
-                        // - Arrow keys: prevent desktop icon selection/movement
-                        // - Enter: prevent opening selected desktop icons
-                        // - Backspace/Delete: prevent file operations
-                        // All these keys should only affect the webpage when mouse is over wallpaper
-
-                        // Only consume on keydown to allow keyup to propagate normally
-                        if (msg == WM_KEYDOWN)
-                        {
-                            return new IntPtr(1); // Consume the event
-                        }
+                        return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
                     }
 
-                    // For everything else (mouse not over wallpaper, or keyup events), pass through
-                    return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
+                    // 3. Forward to wallpaper only when the cursor is over us.
+                    if (_mouseOverWallpaper)
+                    {
+                        ForwardKeyboardEvent(msg, kb);
+
+                        // Consume the *down* events so the desktop doesn't also receive
+                        // them (icon-search, arrow-key icon navigation, F2 rename, etc.).
+                        // Up events fall through harmlessly.
+                        if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
+                        {
+                            return new IntPtr(1);
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -432,122 +449,126 @@ namespace WebPaper.Core
                 Console.WriteLine($"InputManager: Keyboard hook error - {ex.Message}");
             }
 
-            // If we didn't handle it (error or not enabled), pass it through
             return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
         }
 
-        /// <summary>
-        /// Checks if a virtual key code is a system key that should never be consumed
-        /// </summary>
-        private bool IsSystemKey(int vkCode)
+        private static bool IsModifierKey(int vk)
         {
-            // Windows keys
-            if (vkCode == 0x5B || vkCode == 0x5C) return true; // VK_LWIN, VK_RWIN
+            return vk == 0x10 || vk == 0xA0 || vk == 0xA1   // SHIFT / L-SHIFT / R-SHIFT
+                || vk == 0x11 || vk == 0xA2 || vk == 0xA3   // CONTROL / L-CTRL / R-CTRL
+                || vk == 0x12 || vk == 0xA4 || vk == 0xA5   // MENU(Alt) / L-ALT / R-ALT
+                || vk == 0x14                               // CAPS LOCK
+                || vk == 0x5B || vk == 0x5C;                // L-WIN / R-WIN
+        }
 
-            // Alt keys
-            if (vkCode == 0x12) return true; // VK_MENU (Alt)
+        private static bool IsAltDown(uint hookFlags)
+        {
+            return (hookFlags & LLKHF_ALTDOWN) != 0
+                || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+        }
 
-            // Tab key (for Alt+Tab)
-            if (vkCode == 0x09) return true; // VK_TAB
+        private static bool IsCtrlDown()
+        {
+            return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+        }
 
-            // Control keys (for Ctrl+Alt+Del, Ctrl+Esc, etc.)
-            if (vkCode == 0x11) return true; // VK_CONTROL
+        private static bool IsWinDown()
+        {
+            return (GetAsyncKeyState(0x5B) & 0x8000) != 0
+                || (GetAsyncKeyState(0x5C) & 0x8000) != 0;
+        }
 
-            // Escape (for closing menus, canceling operations)
-            if (vkCode == 0x1B) return true; // VK_ESCAPE
+        private static bool IsSystemHotkey(int vk, uint hookFlags)
+        {
+            // Win+anything: leave it alone so Win, Win+E, Win+R etc. keep working.
+            if (IsWinDown()) return true;
 
-            // Function keys (F1-F12) - used for system shortcuts
-            if (vkCode >= 0x70 && vkCode <= 0x7B) return true; // VK_F1 to VK_F12
+            bool altDown = IsAltDown(hookFlags);
+            bool ctrlDown = IsCtrlDown();
+
+            // Alt+Tab, Alt+F4, Alt+Esc, Alt+Space.
+            if (altDown && (vk == 0x09 || vk == 0x73 || vk == 0x1B || vk == 0x20))
+                return true;
+
+            // Ctrl+Esc (Start menu), Ctrl+Alt+Del / Ctrl+Shift+Esc (handled by the
+            // OS before us, but for completeness).
+            if (ctrlDown && vk == 0x1B) return true;
 
             return false;
         }
 
-        // Track last logged class to avoid spam
-        private string _lastLoggedClass = "";
-        private DateTime _lastClassLogTime = DateTime.MinValue;
-        private IntPtr _lastDesktopIconWindow = IntPtr.Zero; // Cache desktop icon window
+        private IntPtr _lastDesktopIconWindow = IntPtr.Zero;
+
+        private enum ClickTarget
+        {
+            /// <summary>The cursor is over the wallpaper (our WebView2, the WorkerW, the
+            /// desktop default-view, or Progman). The webpage should receive the input.</summary>
+            Wallpaper,
+            /// <summary>The cursor is on the desktop icon SysListView32. The shell handles it.</summary>
+            DesktopIcon,
+            /// <summary>The cursor is on a foreground application window we don't own. Pass through untouched.</summary>
+            OtherApp,
+        }
 
         /// <summary>
-        /// Checks if a click is on the wallpaper (not on desktop icons)
-        /// Returns the window handle if it's a desktop icon window (for click forwarding)
+        /// Classifies what's under the cursor so we know whether to forward the click,
+        /// leave it for the desktop, or completely stay out of the way.
         /// </summary>
-        private (bool isOnWallpaper, IntPtr targetWindow) GetClickTarget(POINT pt)
+        private (ClickTarget target, IntPtr iconHwnd) ClassifyClickTarget(POINT pt)
         {
             try
             {
-                // Get the window at this point
                 IntPtr hwnd = WindowFromPoint(pt);
-
                 if (hwnd == IntPtr.Zero)
                 {
-                    LogWindowClass("NULL", false, "(WindowFromPoint returned NULL)");
-                    return (false, IntPtr.Zero);
+                    return (ClickTarget.OtherApp, IntPtr.Zero);
                 }
 
-                // Get the window class name
                 StringBuilder className = new StringBuilder(256);
                 GetClassName(hwnd, className, className.Capacity);
-                string classNameStr = className.ToString();
+                string cls = className.ToString();
 
-                // Desktop icons are in "SysListView32" window - need to forward these!
-                if (classNameStr.Contains("SysListView32"))
+                if (cls.Contains("SysListView32"))
                 {
-                    LogWindowClass(classNameStr, false, "Desktop icon list - will forward to icons");
-                    _lastDesktopIconWindow = hwnd; // Cache for future use
-                    return (false, hwnd); // Not wallpaper, but return icon window handle
+                    _lastDesktopIconWindow = hwnd;
+                    return (ClickTarget.DesktopIcon, hwnd);
                 }
 
-                // CRITICAL FIX: Accept clicks on our OWN WebView2 window!
-                // When the wallpaper is visible, clicks land on the WebView2 itself
-                if (classNameStr.Contains("Chrome_RenderWidgetHostHWND"))
+                if (cls.Contains("Chrome_RenderWidgetHostHWND"))
                 {
-                    // Verify it's actually our WebView2 by checking if it's a child of our window
-                    // (This prevents accepting clicks on other Chrome/Edge windows)
-                    LogWindowClass(classNameStr, true, "Our WebView2 wallpaper");
-                    return (true, IntPtr.Zero);
+                    // Verify the WebView2 child belongs to OUR wallpaper window, not some
+                    // other Chrome/Edge process — otherwise clicks on a Chrome window
+                    // would be misclassified as wallpaper.
+                    if (IsDescendantOfMain(hwnd))
+                        return (ClickTarget.Wallpaper, IntPtr.Zero);
+                    return (ClickTarget.OtherApp, IntPtr.Zero);
                 }
 
-                // For desktop surface (SHELLDLL_DefView) and Progman, forward to wallpaper
-                // These are the desktop background areas where our wallpaper should be interactive
-                if (classNameStr.Contains("SHELLDLL_DefView") || classNameStr.Contains("Progman"))
+                if (cls.Contains("SHELLDLL_DefView") || cls.Contains("Progman") || cls == "WorkerW")
                 {
-                    LogWindowClass(classNameStr, true, "Desktop surface");
-                    return (true, IntPtr.Zero);
+                    return (ClickTarget.Wallpaper, IntPtr.Zero);
                 }
 
-                // For any other window, don't forward (might be another app)
-                LogWindowClass(classNameStr, false, "Other window (not desktop)");
-                return (false, IntPtr.Zero);
+                return (ClickTarget.OtherApp, IntPtr.Zero);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"InputManager: GetClickTarget error - {ex.Message}");
-                return (false, IntPtr.Zero);
+                Console.WriteLine($"InputManager: ClassifyClickTarget error - {ex.Message}");
+                return (ClickTarget.OtherApp, IntPtr.Zero);
             }
         }
 
-        /// <summary>
-        /// Checks if a click is on the wallpaper (not on desktop icons) - compatibility wrapper
-        /// </summary>
-        private bool IsClickOnWallpaper(POINT pt)
+        /// <summary>True if hwnd has _mainWindowHandle anywhere in its ancestor chain.</summary>
+        private bool IsDescendantOfMain(IntPtr hwnd)
         {
-            var (isOnWallpaper, _) = GetClickTarget(pt);
-            return isOnWallpaper;
-        }
-
-        /// <summary>
-        /// Logs window class detection (throttled to avoid spam)
-        /// </summary>
-        private void LogWindowClass(string className, bool willForward, string reason)
-        {
-            // Debug: Log window class detection (commented out to reduce spam)
-            // Only log if class changed or it's been >5 seconds
-            // if (className != _lastLoggedClass || (DateTime.Now - _lastClassLogTime).TotalSeconds > 5)
-            // {
-            //     Console.WriteLine($"InputManager: WindowFromPoint = '{className}' -> {(willForward ? "FORWARD" : "REJECT")} ({reason})");
-            //     _lastLoggedClass = className;
-            //     _lastClassLogTime = DateTime.Now;
-            // }
+            if (_mainWindowHandle == IntPtr.Zero) return true; // legacy fallback
+            IntPtr cur = hwnd;
+            for (int i = 0; i < 8 && cur != IntPtr.Zero; i++)
+            {
+                if (cur == _mainWindowHandle) return true;
+                cur = GetParent(cur);
+            }
+            return false;
         }
 
         /// <summary>
@@ -1276,46 +1297,68 @@ namespace WebPaper.Core
         }
 
         /// <summary>
-        /// Forwards keyboard event to WebView2
-        /// CRITICAL: Must send both WM_KEYDOWN/WM_KEYUP AND WM_CHAR for text input to work
-        /// When manually posting messages, TranslateMessage doesn't run, so we must generate WM_CHAR ourselves
-        /// Use SendMessage (synchronous) to prevent race conditions and character duplication
+        /// Forwards a keyboard event to WebView2.
+        ///
+        /// Critical fixes vs. the previous implementation:
+        ///   1. lParam is now built from <see cref="KBDLLHOOKSTRUCT"/> in the proper
+        ///      WM_KEYDOWN/WM_KEYUP bitfield format (repeat count, scan code, extended,
+        ///      context, previous state, transition). The old code passed the hook's
+        ///      lParam (a *pointer* to KBDLLHOOKSTRUCT) straight through, so WebView2
+        ///      received garbage in scanCode / extended / transition bits and treated
+        ///      every key as un-modified.
+        ///   2. Alt-modified keys are sent as WM_SYSKEYDOWN/WM_SYSKEYUP (with WM_SYSCHAR)
+        ///      so the page's keydown handlers see the correct event type.
+        ///   3. WM_CHAR is suppressed when Ctrl is held alone (without Alt), matching
+        ///      what TranslateMessage does — otherwise Ctrl+S would deliver a stray
+        ///      WM_CHAR(0x13) on top of the Ctrl+S keydown.
+        ///   4. ToUnicode is called with the read-only flag (bit 2) so it doesn't
+        ///      consume dead-key state and break the next legitimate keystroke.
         /// </summary>
-        private void ForwardKeyboardEvent(IntPtr wParam, int vkCode, IntPtr lParam)
+        private void ForwardKeyboardEvent(uint msg, KBDLLHOOKSTRUCT kb)
         {
             try
             {
-                uint msg = (uint)wParam.ToInt32();
+                if (_inputHandle == IntPtr.Zero) return;
 
-                // Send keyboard message to Chrome_WidgetWin_1
-                if (_inputHandle != IntPtr.Zero)
+                int vk = (int)kb.vkCode;
+                bool isExtended = (kb.flags & LLKHF_EXTENDED) != 0;
+                bool altDown    = IsAltDown(kb.flags);
+                bool ctrlDown   = IsCtrlDown();
+                bool isUp       = msg == WM_KEYUP || msg == WM_SYSKEYUP;
+
+                // Build the standard WM_KEYDOWN/UP lParam bitfield:
+                //   bits  0-15  repeat count (always 1 for injected events)
+                //   bits 16-23  hardware scan code
+                //   bit  24     extended-key flag
+                //   bits 25-28  reserved
+                //   bit  29     context code (1 if Alt is held)
+                //   bit  30     previous key state (1 if key was already down)
+                //   bit  31     transition state (1 for key-up, 0 for key-down)
+                uint l = 1u
+                       | ((kb.scanCode & 0xFFu) << 16)
+                       | (isExtended ? 1u << 24 : 0u)
+                       | (altDown    ? 1u << 29 : 0u)
+                       | (isUp       ? (1u << 30) | (1u << 31) : 0u);
+                IntPtr lParam = new IntPtr(unchecked((int)l));
+                IntPtr wParam = new IntPtr(vk);
+
+                // Use WM_SYSKEYDOWN/UP for Alt-modified keys (matches what
+                // TranslateMessage produces from a real keystroke).
+                uint sendMsg = altDown
+                    ? (isUp ? WM_SYSKEYUP : WM_SYSKEYDOWN)
+                    : (isUp ? WM_KEYUP    : WM_KEYDOWN);
+
+                SendMessage(_inputHandle, sendMsg, wParam, lParam);
+
+                // Generate WM_CHAR / WM_SYSCHAR for printable characters on key-down only.
+                // Don't generate when Ctrl is held without Alt (matches TranslateMessage).
+                if (!isUp && !(ctrlDown && !altDown))
                 {
-                    IntPtr keyWParam = new IntPtr(vkCode);
-
-                    // CRITICAL: Use SendMessage (synchronous) not PostMessage (asynchronous)
-                    // This prevents message reordering and duplication issues
-
-                    // Step 1: Send WM_KEYDOWN or WM_KEYUP
-                    SendMessage(_inputHandle, msg, keyWParam, lParam);
-
-                    // Step 2: For WM_KEYDOWN, also generate and send WM_CHAR for printable characters
-                    // This is necessary because TranslateMessage doesn't run when we manually inject messages
-                    if (msg == WM_KEYDOWN)
+                    char ch = VirtualKeyToCharSafe(kb.scanCode, (uint)vk);
+                    if (ch >= 0x20 && ch != 0x7F)
                     {
-                        // Convert virtual key to character
-                        char ch = VirtualKeyToChar((uint)vkCode);
-                        if (ch != '\0') // If it's a printable character
-                        {
-                            // Send WM_CHAR message AFTER WM_KEYDOWN
-                            IntPtr charWParam = new IntPtr(ch);
-                            SendMessage(_inputHandle, WM_CHAR, charWParam, IntPtr.Zero);
-
-                            // Debug: Log keyboard characters (commented out to reduce spam)
-                            // if (_eventCount % 10 == 0)
-                            // {
-                            //     Console.WriteLine($"InputManager: Sent '{ch}' (vk=0x{vkCode:X2})");
-                            // }
-                        }
+                        uint charMsg = altDown ? WM_SYSCHAR : WM_CHAR;
+                        SendMessage(_inputHandle, charMsg, new IntPtr(ch), lParam);
                     }
                 }
             }
@@ -1326,35 +1369,24 @@ namespace WebPaper.Core
         }
 
         /// <summary>
-        /// Converts a virtual key code to a character using current keyboard state
-        /// Returns '\0' if the key doesn't produce a character (e.g., Shift, Ctrl, Arrow keys)
+        /// Converts a virtual key to a character without mutating the system keyboard
+        /// dead-key state. Returns '\0' for non-character keys (arrows, F-keys, etc.).
         /// </summary>
-        private char VirtualKeyToChar(uint vkCode)
+        private static char VirtualKeyToCharSafe(uint scanCode, uint vkCode)
         {
             try
             {
-                // Get current keyboard state (for modifiers like Shift, Caps Lock)
                 byte[] keyboardState = new byte[256];
                 if (!GetKeyboardState(keyboardState))
                     return '\0';
 
-                // Get scan code from virtual key
-                uint scanCode = MapVirtualKey(vkCode, 0); // MAPVK_VK_TO_VSC = 0
+                uint sc = scanCode != 0 ? scanCode : MapVirtualKey(vkCode, 0);
 
-                // Convert to Unicode character
-                StringBuilder result = new StringBuilder(5);
-                int ret = ToUnicode(vkCode, scanCode, keyboardState, result, result.Capacity, 0);
-
-                if (ret == 1) // Successfully converted to 1 character
-                {
-                    return result[0];
-                }
-                else if (ret == 2) // Dead key or multi-character (rare)
-                {
-                    return result[0]; // Return first character
-                }
-
-                return '\0'; // No character (control key, arrow key, etc.)
+                StringBuilder result = new StringBuilder(8);
+                // wFlags bit 2 (value 4): "do not change keyboard state" (Win10 1607+).
+                int ret = ToUnicode(vkCode, sc, keyboardState, result, result.Capacity, 0x4);
+                if (ret >= 1) return result[0];
+                return '\0';
             }
             catch
             {
